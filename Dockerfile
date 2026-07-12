@@ -1,6 +1,6 @@
 FROM node:lts-alpine AS builder
 
-USER node
+# USER node
 WORKDIR /app
 COPY --chown=node:node app/ ./
 

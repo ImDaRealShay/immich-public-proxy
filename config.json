@@ -1,0 +1,54 @@
+{
+  "ipp": {
+    "responseHeaders": {
+      "Cache-Control": "public, max-age=2592000",
+      "Access-Control-Allow-Origin":  "*"
+    },
+    "maxDownloadQuality": "original",
+    "maxZoomQuality": "preview",
+    "downloadedFilename": 0,
+    "allowDownload": 0,
+    "downloadFromImmichConcurrencyLimit": 20,
+    "allowSlugLinks": true,
+    "showHomePage": true,
+    "showMetadata": {
+      "description": {
+        "caption": true,
+        "sidebar": true
+      },
+      "exif": {
+        "dateTimeOriginal": true,
+        "fileName": false,
+        "dimensions": false,
+        "fileSize": false,
+        "make": true,
+        "model": true,
+        "lensModel": true,
+        "exposureTime": true,
+        "iso": true,
+        "fNumber": true,
+        "focalLength": true
+      },
+      "location": {
+        "city": true,
+        "state": true,
+        "country": true,
+        "gps": true
+      }
+    },
+    "customInvalidResponse": false,
+    "gallery": {
+      "singleImage": false,
+      "singleItemAutoOpen": true,
+      "showTitle": true,
+      "showDescription": false,
+      "groupByDate": false
+    },
+    "lightbox": {
+      "showArrows": true,
+      "showDownload": true,
+      "mobileArrows": false,
+      "autoPlayVideos": false
+    }
+  }
+}

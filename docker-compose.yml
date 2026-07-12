@@ -1,14 +1,24 @@
 services:
   immich-public-proxy:
-    image: alangrainger/immich-public-proxy:latest
+    build: .
+    image: custom-immich-public-proxy:alpha
     container_name: immich-public-proxy
-    restart: always
-    ports:
-      - "3000:3000"
+
+    restart: unless-stopped
+    runtime: gvisor
+    read_only: true
     environment:
-      PUBLIC_BASE_URL: https://your-proxy-url.com
-      IMMICH_URL: http://your-internal-immich-server:2283
+      PUBLIC_BASE_URL: https://immich.akshaykaundinya.com
+      IMMICH_URL: http://172.21.0.50:2283
     healthcheck:
       test: curl -s http://localhost:3000/share/healthcheck -o /dev/null || exit 1
       start_period: 10s
       timeout: 5s
+    volumes:
+      - ./config.json:/app/config.json
+    networks:
+      - tunnel_net
+
+networks:
+  tunnel_net:
+    external: true
