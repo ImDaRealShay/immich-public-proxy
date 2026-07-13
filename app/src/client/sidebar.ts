@@ -317,19 +317,77 @@ function renderLocation (exif: GalleryExif): HTMLElement {
     body.appendChild(coords)
 
     if (state.metadataConfig.locationWebLink) {
+      const mapContainer = document.createElement('div')
+      mapContainer.className = 'ipp-sidebar-map-container'
+      mapContainer.style.width = '100%'
+      mapContainer.style.height = '250px'
+      mapContainer.style.borderRadius = '5px'
+      mapContainer.style.overflow = 'hidden'
+      mapContainer.style.marginBottom = '8px'
+      // mapContainer.style.backgroundColor = '#e5e0d8' //
+
+      const offset = 0.01;
+      const lat = Number(exif.latitude);
+      const lon = Number(exif.longitude);
+
+      const minLon = lon - offset;
+      const minLat = lat - offset;
+      const maxLon = lon + offset;
+      const maxLat = lat + offset;
+
+      const bbox = `${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}`;
+      const marker = `${lat}%2C${lon}`;
+
+      const mapFrame = document.createElement('iframe')
+      mapFrame.width = '100%'
+      mapFrame.style.border = 'none'
+      mapFrame.style.height = 'calc(100% + 240px)'
+      mapFrame.style.marginTop = '-100px'
+      mapFrame.style.marginBottom = '-120px'
+      mapFrame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${marker}`
+
+      const footerContainer = document.createElement('div')
+      footerContainer.style.display = 'flex'
+      footerContainer.style.justifyContent = 'space-between'
+      footerContainer.style.alignItems = 'center'
+      // footerContainer.style.marginTop = '4px'
+
       const link = document.createElement('a')
       link.className = 'ipp-sidebar-osm'
-      link.href = 'https://www.openstreetmap.org/?mlat=' + exif.latitude +
-        '&mlon=' + exif.longitude +
-        '#map=15/' + exif.latitude + '/' + exif.longitude
+      link.href = `https://www.google.com/maps/place/${exif.latitude},${exif.longitude}`
       link.target = '_blank'
-      // noreferrer suppresses the Referer header so the share URL doesn't end up in the map provider's webserver logs
       link.rel = 'noopener noreferrer'
-      link.textContent = 'Open in OpenStreetMap'
-      body.appendChild(link)
+      link.textContent = 'View in Google Maps'
+      link.style.fontSize = '0.85em' // Uniform font size
+
+      const osmCredit = document.createElement('p');
+      osmCredit.textContent = '© OpenStreetMap'
+      osmCredit.style.margin = '0' // Critical: removes default <p> margins that break vertical alignment
+      osmCredit.style.fontSize = '0.85em' // Uniform font size
+      osmCredit.style.color = '#888' // Optional: makes the credit slightly faded
+
+      footerContainer.appendChild(link)
+      footerContainer.appendChild(osmCredit)
+      // const osmCredit = document.createElement('p');
+      // osmCredit.textContent = '© OpenStreetMap'
+      // osmCredit.style.display = 'block'
+      // osmCredit.style.fontSize = '0.65em'
+      // osmCredit.style.marginBottom = '4px'
+
+      // const link = document.createElement('a')
+      // link.className = 'ipp-sidebar-osm'
+      // link.href = `https://www.google.com/maps/place/${exif.latitude},${exif.longitude}`
+      // link.target = '_blank'
+      // link.rel = 'noopener noreferrer'
+      // link.textContent = 'View in Google Maps'
+      // link.style.display = 'block'
+      // link.style.fontSize = '1em'
+
+      mapContainer.appendChild(mapFrame)
+      body.appendChild(mapContainer)
+      body.appendChild(footerContainer)
     }
   }
-
   wrap.appendChild(body)
   return wrap
 }

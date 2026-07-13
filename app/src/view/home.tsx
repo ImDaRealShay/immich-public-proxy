@@ -27,7 +27,7 @@ export function Home () {
       </head>
       <body>
         <div class="container">
-          <a href="https://github.com/alangrainger/immich-public-proxy">
+          <a href="https://github.com/ImDaRealShay/immich-public-proxy">
             <img src="/share/static/images/ipp.svg" alt=""/>
           </a>
         </div>

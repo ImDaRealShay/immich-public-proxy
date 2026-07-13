@@ -1,7 +1,7 @@
 {
   "ipp": {
     "responseHeaders": {
-      "Cache-Control": "public, max-age=2592000",
+      "Cache-Control": "public, no-cache",
       "Access-Control-Allow-Origin":  "*"
     },
     "maxDownloadQuality": "original",
@@ -14,26 +14,26 @@
     "showMetadata": {
       "description": {
         "caption": false,
-        "sidebar": false
+        "sidebar": true
       },
       "exif": {
-        "dateTimeOriginal": false,
+        "dateTimeOriginal": true,
         "fileName": false,
         "dimensions": false,
         "fileSize": false,
-        "make": false,
-        "model": false,
-        "lensModel": false,
-        "exposureTime": false,
-        "iso": false,
-        "fNumber": false,
-        "focalLength": false
+        "make": true,
+        "model": true,
+        "lensModel": true,
+        "exposureTime": true,
+        "iso": true,
+        "fNumber": true,
+        "focalLength": true
       },
       "location": {
-        "city": false,
-        "state": false,
-        "country": false,
-        "gps": false
+        "city": true,
+        "state": true,
+        "country": true,
+        "gps": true
       }
     },
     "customInvalidResponse": false,
@@ -42,8 +42,7 @@
       "singleItemAutoOpen": true,
       "showTitle": true,
       "showDescription": false,
-      "groupByDate": false,
-      "cacheTime": 300
+      "groupByDate": false
     },
     "lightbox": {
       "showArrows": true,

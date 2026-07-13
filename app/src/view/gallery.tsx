@@ -70,7 +70,7 @@ export function Gallery (props: GalleryProps) {
                 <h1>{props.title || 'Gallery'}</h1>
                 <p class="subtitle">
                   {props.items.length}{' '}
-                  {props.items.length === 1 ? 'item' : 'items'}
+                  {props.items.length === 1 ? 'Item' : 'Items'}
                 </p>
               </div>
             )}

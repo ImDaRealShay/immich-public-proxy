@@ -9,13 +9,13 @@ services:
     read_only: true
     environment:
       PUBLIC_BASE_URL: https://immich.akshaykaundinya.com
-      IMMICH_URL: http://172.21.0.50:2283
+      IMMICH_URL: http://172.21.0.5:2283
     healthcheck:
       test: curl -s http://localhost:3000/share/healthcheck -o /dev/null || exit 1
       start_period: 10s
       timeout: 5s
-    volumes:
-      - ./config.json:/app/config.json
+    # volumes:
+    #   - ./config.json:/app/config.json
     networks:
       - tunnel_net
 

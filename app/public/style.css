@@ -14,12 +14,12 @@
   font-family: 'Inter';
   src: url('/share/static/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
   font-weight: 100 900;
-  font-style: normal;
+  font-style: bold;
   font-display: swap;
 }
 
 :root {
-  /* Immich light-mode tokens (RGB triplets so they compose via rgb(var(...))) */
+  /* Immich light-mode tokens (RGB triplets so they compose via rgb (var(...))) */
   --immich-primary: 66 80 175;
   --immich-bg: 255 255 255;
   --immich-fg: 0 0 0;
@@ -27,7 +27,7 @@
 
   /* Immich dark-mode tokens */
   --immich-dark-primary: 172 203 250;
-  --immich-dark-bg: 10 10 10;
+  --immich-dark-bg: 10 17 31;
   --immich-dark-fg: 229 231 235;
   --immich-dark-gray: 33 33 33;
 
@@ -42,7 +42,7 @@
   /* Horizontal inset for textual page content (title, description, group
      headers). The grid itself goes edge-to-edge on mobile so it doesn't use
      this value. */
-  --gutter: 32px;
+  --gutter: 256px;
 
   color-scheme: light;
 }
@@ -231,16 +231,16 @@ html, body {
 
 #header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 36px;
   font-weight: 500;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.0em;
   overflow-wrap: break-word;
 }
 
 #header .subtitle {
   margin: 4px 0 0;
-  font-size: 14px;
+  font-size: 22px;
   font-weight: 400;
   opacity: 0.55;
 }
@@ -543,4 +543,22 @@ html.ipp-sidebar-open .ipp-sidebar {
   padding: 16px;
   opacity: 0.6;
   text-align: center;
+}
+
+/*custom styles*/
+#gallery a[data-index]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100px; /* Controls how far down the shadow extends */
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  pointer-events: none;
+}
+
+#gallery a[data-index]:hover::after {
+  opacity: 1;
 }

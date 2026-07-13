@@ -1,3 +1,6 @@
+### This Project is a fork of the project created by Alan Grainger
+The original project can be found at: https://github.com/alangrainger/immich-public-proxy
+
 # Immich Public Proxy
 
 <p align="center" width="100%">
