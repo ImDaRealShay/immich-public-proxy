@@ -134,6 +134,20 @@ describe('album timeline enumeration (Immich 3.0)', () => {
     expect(result.valid).toBe(false)
   })
 
+  it('treats a share with no assets array as empty', async () => {
+    // Defensive guard (see #267): if Immich returns a link whose `assets`
+    // isn't an array, `.filter` of undefined would reject and, unhandled,
+    // exit the whole process. Treat it as an empty share instead.
+    const noAssets = { type: 'INDIVIDUAL', key: 'real-key', allowDownload: true }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/shared-links/me')) return jsonResponse(noAssets)
+      throw new Error('Unexpected fetch to ' + url)
+    }))
+    const result = await getShareByKey(uniqueKey(), undefined, KeyType.key)
+    expect(result.valid).toBe(true)
+    expect(result.link!.assets).toEqual([])
+  })
+
   it('is invalid (not cached empty) when timeline enumeration fails upstream', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/shared-links/me')) return jsonResponse(sharedLinkResponse())
