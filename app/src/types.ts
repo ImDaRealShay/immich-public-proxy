@@ -20,6 +20,7 @@ export interface ExifInfo {
   // Additional EXIF fields surfaced by Immich for the metadata sidebar
   // (gated server-side by ipp.showMetadata.exif.* and .location.* config).
   dateTimeOriginal?: string | null;
+  timeZone?: string | null;
   fileSizeInByte?: number | null;
   make?: string | null;
   model?: string | null;
@@ -48,6 +49,11 @@ export interface Asset {
   originalMimeType?: string;
   password?: string;
   fileCreatedAt?: string; // May not exist - see https://github.com/alangrainger/immich-public-proxy/issues/61
+  // Timezone-agnostic "taken" timestamp (photographer's local wall-clock).
+  // Immich groups its own timeline by this field. For individual shares it
+  // comes straight from the asset DTO; for album grid items it is synthesised
+  // from fileCreatedAt + localOffsetHours (see timelineBucketToAssets).
+  localDateTime?: string;
   type: AssetType;
   isTrashed: boolean;
   exifInfo?: ExifInfo;
@@ -92,6 +98,9 @@ export interface TimelineBucketAssets {
   thumbhash: (string | null)[];
   isTrashed: boolean[];
   fileCreatedAt: string[];
+  // UTC offset (hours, may be fractional) at the time each photo was taken.
+  // Applying it to fileCreatedAt yields the photographer's local time.
+  localOffsetHours: number[];
 }
 
 export interface SharedLink {

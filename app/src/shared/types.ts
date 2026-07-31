@@ -11,8 +11,12 @@
  * `.location.enableAll`) or the field's own per-field flag is true.
  * Strings are plain text (the client uses `textContent`, not `innerHTML`).
  */
+
+export type GroupByDateMode = 'month' | 'day'
+
 export interface GalleryExif {
   dateTimeOriginal?: string // ISO date string; client formats with Intl.DateTimeFormat
+  timeZone?: string
   fileName?: string
   width?: number
   height?: number
@@ -48,6 +52,9 @@ export interface GalleryItem {
   height?: number
   thumbhash?: string
   fileCreatedAt?: string
+  // Photographer's local wall-clock timestamp, used for date grouping. See
+  // Asset.localDateTime. Falls back to fileCreatedAt when absent.
+  localDateTime?: string
   exif?: GalleryExif
   // True for album "grid" items whose exif / description / real download
   // filename haven't been loaded yet. The client fetches them from the
@@ -90,14 +97,14 @@ export interface MetadataConfig {
 
 /**
  * Shape of the JSON init block embedded in `gallery.tsx` and consumed by
- * `client/init.ts`. The server writes it via `JSON.stringify`; the client
- * reads it via `readInitParams()`.
+ * `client/init.ts`. The server writes it via `jsonForInlineScript`; the
+ * client reads it via `readInitParams()`.
  */
 export interface InitParams {
   items?: GalleryItem[]
   openItem?: number
   lightboxConfig?: LightboxConfig
   metadataConfig?: MetadataConfig
-  groupByDate?: boolean
+  groupByDate?: GroupByDateMode | false
   metaBase?: string
 }

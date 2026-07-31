@@ -1,9 +1,10 @@
 import { AssetType } from '../types'
 import { ThemeScript } from './theme'
-import { GalleryItem, LightboxConfig, MetadataConfig } from '../shared/types'
+import { GalleryItem, LightboxConfig, MetadataConfig, GroupByDateMode } from '../shared/types'
 import { ASSET_VERSION } from '../version'
+import { jsonForInlineScript } from '../utils/text'
 
-export type { GalleryItem, LightboxConfig, MetadataConfig }
+export type { GalleryItem, LightboxConfig, MetadataConfig, GroupByDateMode }
 
 export interface GalleryProps {
   items: GalleryItem[]
@@ -11,18 +12,21 @@ export interface GalleryProps {
   description: string
   publicBaseUrl: string
   path: string
-  showDownload: boolean
+  showDownloadZip: boolean
   showTitle: boolean
+  // Formatted "available until" date shown in the subtitle, or undefined when
+  // ipp.gallery.showExpiryDate is off or the share never expires.
+  expiryDate?: string
   openItem?: number
   ogImageItem?: GalleryItem
   lightboxConfig: LightboxConfig
   metadataConfig: MetadataConfig
-  groupByDate: boolean
+  groupByDate: GroupByDateMode | false
   metaBase?: string
 }
 
 export function Gallery (props: GalleryProps) {
-  const initJson = JSON.stringify({
+  const initJson = jsonForInlineScript({
     items: props.items,
     openItem: props.openItem,
     lightboxConfig: props.lightboxConfig,
@@ -38,6 +42,9 @@ export function Gallery (props: GalleryProps) {
     ? (ogItem.type === AssetType.video ? ogItem.thumbnailUrl : ogItem.previewUrl)
     : ''
   const ogImageUrl = ogItem ? props.publicBaseUrl + ogImageAsset : ''
+  // The title block also carries the subtitle (item count + optional expiry),
+  // so it renders when a title is wanted OR there's an expiry date to show.
+  const showHeaderText = props.showTitle || !!props.expiryDate
 
   return (
     <html lang="en">
@@ -63,18 +70,21 @@ export function Gallery (props: GalleryProps) {
         <link type="text/css" rel="stylesheet" href={`/share/static/${ASSET_VERSION}/photoswipe-overrides.css`}/>
       </head>
       <body>
-        {(props.showTitle || props.showDownload) && (
+        {(showHeaderText || props.showDownloadZip) && (
           <header id="header">
-            {props.showTitle && (
+            {showHeaderText && (
               <div class="header-text">
-                <h1>{props.title || 'Gallery'}</h1>
+                {props.showTitle && <h1>{props.title || 'Gallery'}</h1>}
                 <p class="subtitle">
                   {props.items.length}{' '}
                   {props.items.length === 1 ? 'Item' : 'Items'}
+                  {props.expiryDate && (
+                    <>{' · available until '}{props.expiryDate}</>
+                  )}
                 </p>
               </div>
             )}
-            {props.showDownload && (
+            {props.showDownloadZip && (
               <a id="download-all" href={props.path + '/download'} title="Download all" aria-label="Download all">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
@@ -89,7 +99,7 @@ export function Gallery (props: GalleryProps) {
 {/* Container is intentionally empty - web.js's virtualisation manager
             populates it with only the tiles within the viewport buffer. */}
         <div id="gallery"></div>
-        {props.showDownload && (
+        {props.showDownloadZip && (
           <div id="select-toolbar" hidden>
             <button id="select-cancel" class="toolbar-btn" type="button" aria-label="Exit selection mode">
               <svg viewBox="0 0 24 24" aria-hidden="true">

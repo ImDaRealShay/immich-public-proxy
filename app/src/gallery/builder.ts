@@ -4,16 +4,17 @@ import {
   videoUrl
 } from '../immich'
 import { Response } from 'express-serve-static-core'
-import { AssetType, ImageSize, SharedLink } from '../types'
-import { getConfigOption } from '../config/access'
-import { canDownload, title } from '../share'
+import { Asset, AssetType, ImageSize, SharedLink } from '../types'
+import { getConfigOption, getNumericConfigOption } from '../config/access'
+import { canDownload, expiryDate, title } from '../share'
 import { toString } from '../utils/text'
 import { h } from 'preact'
 import { renderPage } from '../view/render'
 import { Gallery, GalleryItem, GalleryProps } from '../view/gallery'
+import type { GroupByDateMode } from '../shared/types'
 import { downloadFilename } from './filename'
 import { requiresOriginal } from './sizing'
-import { metadataGroupActive, pickExif } from './exif'
+import { displayDimensions, metadataGroupActive, pickExif } from './exif'
 
 /**
  * Render a gallery page for a given SharedLink.
@@ -27,11 +28,13 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
   // You can specify this in your docker-compose file via the PUBLIC_BASE_URL env var.
   const publicBaseUrl = process.env.PUBLIC_BASE_URL || (res.req.protocol + '://' + res.req.headers.host)
 
-  // Date grouping needs chronological order; sort newest-first when enabled
-  // (overrides any album.order the upstream applied).
-  const groupByDate = !!getConfigOption('ipp.gallery.groupByDate', false)
+  // Date grouping needs chronological order; follow the album's own sort
+  // direction, defaulting to newest-first when it has none (individual shares).
+  // Sort by the same local timestamp the grouping buckets on, so buckets stay
+  // contiguous / ordered.
+  const groupByDate = groupByDateMode()
   if (groupByDate) {
-    share.assets.sort((a, b) => (b.fileCreatedAt || '').localeCompare(a.fileCreatedAt || ''))
+    share.assets.sort(dateSortComparator(share.album?.order))
   }
 
   // Metadata display flags. Read once here and forwarded to the client via
@@ -82,16 +85,7 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
       ? asset.exifInfo.description
       : ''
 
-    let width = asset.width
-    let height = asset.height
-    if (!width || !height) {
-      width = asset.exifInfo?.exifImageWidth
-      height = asset.exifInfo?.exifImageHeight
-      const orientation = asset.exifInfo?.orientation
-      if (orientation && ['5', '6', '7', '8'].includes(orientation) && width && height) {
-        [width, height] = [height, width]
-      }
-    }
+    const { width, height } = displayDimensions(asset)
 
     return {
       id: asset.id,
@@ -107,6 +101,7 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
       height,
       thumbhash: asset.thumbhash,
       fileCreatedAt: asset.fileCreatedAt,
+      localDateTime: asset.localDateTime,
       exif: shareMetadataAllowed ? pickExif(asset) : undefined,
       // Album grid items carry no exif / description / real filename yet; the
       // client fetches them from `metaBase` the first time the item opens.
@@ -136,8 +131,9 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
     description: getConfigOption('ipp.gallery.showDescription', false) ? description(share) : '',
     publicBaseUrl: toString(publicBaseUrl),
     path: '/share/' + share.key,
-    showDownload: downloadAllowed,
+    showDownloadZip: downloadAllowed && !!getConfigOption('ipp.gallery.showDownloadZip', true),
     showTitle: !!getConfigOption('ipp.gallery.showTitle', true),
+    expiryDate: expiryDate(share),
     openItem,
     ogImageItem,
     lightboxConfig: {
@@ -159,8 +155,7 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
   }
 
   // HTML gallery page cache time
-  const configured = Number(getConfigOption('ipp.gallery.cacheTime', 300))
-  const cacheTime = Number.isFinite(configured) ? Math.max(0, configured) : 300
+  const cacheTime = Math.max(0, getNumericConfigOption('ipp.gallery.cacheTime', 300))
   res.header('Cache-Control', 'public, max-age=' + cacheTime)
   res.send(renderPage(h(Gallery, props)))
 }
@@ -170,4 +165,33 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
  */
 function description (share: SharedLink) {
   return share?.album?.description || ''
+}
+
+/**
+ * Comparator for the date-grouping sort: ascending when the album's order is
+ * `'asc'`, otherwise newest-first (individual shares and orderless albums).
+ * Undated assets always sort last regardless of direction, so the client's
+ * "Undated" group renders at the bottom.
+ */
+export function dateSortComparator (order?: string): (a: Asset, b: Asset) => number {
+  const ascending = order === 'asc'
+  const sortKey = (a: Asset) => a.localDateTime || a.fileCreatedAt || ''
+  return (a, b) => {
+    const ka = sortKey(a)
+    const kb = sortKey(b)
+    if (!ka || !kb) return ka ? -1 : kb ? 1 : 0 // undated always last
+    return ascending ? ka.localeCompare(kb) : kb.localeCompare(ka)
+  }
+}
+
+/**
+ * Normalise the operator's `ipp.gallery.groupByDate` config into a grouping
+ * mode. Accepts `false` (off), `true` / `'month'` (legacy = month buckets) or
+ * `'day'` (day buckets); anything else is treated as off.
+ */
+function groupByDateMode (): GroupByDateMode | false {
+  const v = getConfigOption('ipp.gallery.groupByDate', false)
+  if (v === 'day') return 'day'
+  if (v === true || v === 'month') return 'month'
+  return false
 }

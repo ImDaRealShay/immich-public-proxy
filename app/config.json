@@ -17,7 +17,12 @@
         "sidebar": true
       },
       "exif": {
+<<<<<<< HEAD
         "dateTimeOriginal": true,
+=======
+        "dateTimeOriginal": false,
+        "timeZone": false,
+>>>>>>> upstream/main
         "fileName": false,
         "dimensions": false,
         "fileSize": false,
@@ -39,10 +44,16 @@
     "customInvalidResponse": false,
     "gallery": {
       "singleImage": false,
+      "singleVideo": true,
       "singleItemAutoOpen": true,
       "showTitle": true,
       "showDescription": false,
-      "groupByDate": false
+      "showExpiryDate": false,
+      "expiryDateFormat": "YYYY-MM-DD",
+      "expiryDateLocale": "",
+      "groupByDate": false,
+      "showDownloadZip": false,
+      "cacheTime": 300
     },
     "lightbox": {
       "showArrows": true,
