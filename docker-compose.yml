@@ -1,7 +1,7 @@
 services:
   immich-public-proxy:
     build: .
-    image: custom-immich-public-proxy:alpha
+    image: imdarealshay/immich-public-proxy:latest
     container_name: immich-public-proxy
 
     restart: unless-stopped
