@@ -17,12 +17,8 @@
         "sidebar": true
       },
       "exif": {
-<<<<<<< HEAD
         "dateTimeOriginal": true,
-=======
-        "dateTimeOriginal": false,
-        "timeZone": false,
->>>>>>> upstream/main
+        "timeZone": true,
         "fileName": false,
         "dimensions": false,
         "fileSize": false,
