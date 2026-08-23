@@ -266,7 +266,7 @@ app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, asyncHandler(
   }
   const asset: Asset = {
     ...resolved.asset,
-    type: req.params.type === 'video' ? AssetType.video : AssetType.image
+    type: req.params.type === 'video' ? AssetType.video : resolved.asset.type
   }
 
   const request = {
@@ -274,7 +274,7 @@ app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, asyncHandler(
     key: req.params.key,
     range: req.headers.range || ''
   }
-  await assetBuffer(request, res, asset, req.params.size)
+  await assetBuffer(request, res, asset, req.params.size, resolved.link, req.params.type === 'video')
 }))
 
 /*

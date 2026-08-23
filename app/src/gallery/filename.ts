@@ -61,10 +61,17 @@ function withMimeExtension (filename: string, mime: string | undefined): string 
  * @param asset
  * @param [servedSize] - what size Immich will actually serve. Defaults to
  *   ImageSize.original (the bytes match the original asset).
+ * @param [servedMimeOverride] - actual MIME of the served bytes when they
+ *   differ from the original (a `/video/playback` transcode). Ignored when it
+ *   doesn't map to a known extension, so an unrecognised content-type can't
+ *   strip the filename's extension.
  */
-export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.original): string {
+export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.original, servedMimeOverride?: string): string {
+  const override = mimeToExt(servedMimeOverride) ? servedMimeOverride : undefined
   let servedMime: string | undefined
-  if (servedSize === ImageSize.original) {
+  if (override) {
+    servedMime = override
+  } else if (servedSize === ImageSize.original) {
     servedMime = asset.originalMimeType
   } else if (servedSize === ImageSize.thumbnail) {
     servedMime = 'image/webp'
@@ -83,7 +90,9 @@ export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.ori
       // By default, use the asset's original filename
       const cleanName = asset.originalFileName ? sanitize(asset.originalFileName) : ''
       if (!cleanName) return withMimeExtension(asset.id, servedMime)
-      const stem = servedSize === ImageSize.original
+      // Keep the original extension only when the served bytes really are the
+      // original file; a size downgrade or playback transcode replaces it.
+      const stem = servedSize === ImageSize.original && !override
         ? cleanName
         : cleanName.replace(/\.[a-zA-Z0-9]{2,5}$/, '')
       return withMimeExtension(stem, servedMime)

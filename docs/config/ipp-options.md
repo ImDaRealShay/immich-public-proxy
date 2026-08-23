@@ -66,6 +66,15 @@ Show the download UI - the "download all" zip, the multi-select download, and th
 
 The bulk-zip and per-asset buttons can be toggled independently once downloads are allowed - see [`gallery.showDownloadZip`](/config/gallery#showdownloadzip) and [`lightbox.showDownload`](/config/lightbox#showdownload).
 
+> [!NOTE]
+> With `2`, IPP shows the download UI even on shares whose **own** download toggle in Immich is off - but Immich still refuses to serve those shares' original files, so IPP works around it where it can:
+>
+> - **Videos** are downloaded as the transcoded playback file instead of the original (the same stream the visitor can already watch). The filename extension follows the transcoded format, typically `.mp4`.
+> - **Photos** download normally as long as [`maxDownloadQuality`](#maxdownloadquality) is below `original`; with `maxDownloadQuality: original` they fail, because the original file is exactly what Immich is refusing to serve.
+> - **Gifs** always download as the original file (their preview is a static frame), so they fail on these shares.
+>
+> To guarantee full-quality downloads of everything, leave the share's download permission on in Immich.
+
 ## `downloadFromImmichConcurrencyLimit`
 
 **Type:** `int` · **Default:** `20`

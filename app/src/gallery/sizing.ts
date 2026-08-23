@@ -24,19 +24,26 @@ export interface ImageEndpoint {
  *   listed because Immich doesn't expose a distinct MIME type for them - they
  *   share `image/png` / `image/webp` with their static counterparts.
  *
- * Used by both the display path (lightbox preview URL) and the download path
- * (single-asset download + zip), so the lightbox shows the same bytes the
- * user gets when they hit "download".
+ * Used by display sizing and by downloads that Immich can serve from the
+ * original endpoint. IPP-forced video downloads have their own playback
+ * fallback in `resolveDownloadEndpoint`.
  */
 export function requiresOriginal (asset: Asset): boolean {
-  if (asset.type === AssetType.video) {
-    return true
-  } else if (asset.originalMimeType?.startsWith('video/')) {
+  if (isVideoAsset(asset)) {
     return true
   } else if (asset.originalMimeType === 'image/gif') {
     return true
   }
   return false
+}
+
+/**
+ * Whether an asset is a video. Route handlers can coerce `type` from the URL,
+ * while detailed Immich asset responses identify video originals by MIME type;
+ * endpoint selection accepts either signal.
+ */
+export function isVideoAsset (asset: Asset): boolean {
+  return asset.type === AssetType.video || !!asset.originalMimeType?.startsWith('video/')
 }
 
 /*
@@ -123,6 +130,20 @@ export function resolveImageEndpoint (requested: ImageSize, asset: Asset): Image
   }
   const served = clamp(requested, ImageSize.preview, ceiling(requested))
   return endpointFor(served, asset, attachment)
+}
+
+/**
+ * Resolve the endpoint for an IPP download. This is usually the same as an
+ * `original` image-size request. The exception is a video on a shared link
+ * whose Immich download permission is off: Immich refuses `/original` with
+ * `asset.download` access, while `/video/playback` can still serve the
+ * transcoded playback file that visitors are allowed to stream.
+ */
+export function resolveDownloadEndpoint (asset: Asset, immichAllowsOriginalDownload = true): ImageEndpoint {
+  if (!immichAllowsOriginalDownload && isVideoAsset(asset)) {
+    return { subpath: '/video/playback', attachment: true, servedSize: ImageSize.original }
+  }
+  return resolveImageEndpoint(ImageSize.original, asset)
 }
 
 /**

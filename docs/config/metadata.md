@@ -38,7 +38,7 @@ Show the description in the sidebar only (not as a lightbox caption), expose cam
 
 Every per-field flag defaults to `false`. A field is sent to the client only when its flag is explicitly `true`. There is no master switch - this is deliberate, so that fields IPP adds in future releases don't auto-expose without your action.
 
-The share owner's **"Show metadata"** toggle in Immich takes precedence over everything here: when it's off, IPP suppresses all description / EXIF / location output and hides the info sidebar (and its toolbar toggle) entirely, regardless of these settings. Note that with "Show metadata" off Immich also strips file creation dates from non-album shares, so [date grouping](/config/gallery#groupbydate) won't work for those shares.
+The share owner's **"Show metadata"** toggle in Immich takes precedence over everything here: when it's off, IPP suppresses all description / EXIF / location output and hides the info sidebar (and its toolbar toggle) entirely, regardless of these settings.
 
 The info sidebar (and its toolbar toggle button) only appear when there is at least one section the operator has opted into - i.e. `description.sidebar` is true, or `exif` / `location` has at least one displayable field set to `true`. Dependent flags such as `exif.timeZone` do not activate the sidebar on their own. With all three groups off, the sidebar UI is suppressed.
 

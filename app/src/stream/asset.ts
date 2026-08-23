@@ -5,10 +5,10 @@ import {
   validateImageSize
 } from '../immich'
 import { Response } from 'express-serve-static-core'
-import { Asset, AssetType, ImageSize, IncomingShareRequest } from '../types'
+import { Asset, ImageSize, IncomingShareRequest, SharedLink } from '../types'
 import { respondToInvalidRequest } from '../invalidRequestHandler'
 import { getFilename } from '../gallery/filename'
-import { resolveImageEndpoint } from '../gallery/sizing'
+import { isVideoAsset, resolveDownloadEndpoint, resolveImageEndpoint } from '../gallery/sizing'
 
 /**
  * Stream an asset from Immich back to the client.
@@ -18,7 +18,7 @@ import { resolveImageEndpoint } from '../gallery/sizing'
  * or locked assets are handled implicitly: Immich's own endpoints refuse
  * to serve them, and the upstream failure surfaces as a client 404.
  */
-export async function assetBuffer (req: IncomingShareRequest, res: Response, asset: Asset, size?: ImageSize | string) {
+export async function assetBuffer (req: IncomingShareRequest, res: Response, asset: Asset, size?: ImageSize | string, share?: SharedLink, forceVideoPlayback = false) {
   const headerList = ['content-type', 'content-length', 'last-modified', 'etag']
   const fetchHeaders: Record<string, string> = {}
   let subpath: string
@@ -26,8 +26,13 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
   let attachment = false
   let servedSize: ImageSize | undefined
 
-  if (asset.type === AssetType.video) {
+  const requested = validateImageSize(size)
+  const useVideoPlayback = forceVideoPlayback || (isVideoAsset(asset) && requested === ImageSize.original && share?.allowDownload === false)
+
+  if (useVideoPlayback) {
     subpath = '/video/playback'
+    attachment = requested === ImageSize.original
+    servedSize = ImageSize.original
     res.setHeader('accept-ranges', 'bytes')
     // Only chunk when the client sent a Range header. A browser <video>
     // element does, so playback still streams in 2.5 MB chunks. Clients
@@ -43,7 +48,6 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
       res.status(206) // Partial Content
     }
   } else {
-    const requested = validateImageSize(size)
     // Album "grid" items arrive without originalMimeType. The fullsize tier
     // needs it to pick /original (web formats) vs ?size=fullsize (RAW/HEIF), so
     // fetch the asset detail on demand (cached) before resolving.
@@ -51,7 +55,9 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
       const detail = await fetchAssetDetail(asset)
       if (detail?.originalMimeType) asset = { ...asset, originalMimeType: detail.originalMimeType }
     }
-    const endpoint = resolveImageEndpoint(requested, asset)
+    const endpoint = requested === ImageSize.original
+      ? resolveDownloadEndpoint(asset, share?.allowDownload !== false)
+      : resolveImageEndpoint(requested, asset)
     subpath = endpoint.subpath
     sizeQueryParam = endpoint.sizeQueryParam
     attachment = endpoint.attachment
@@ -73,7 +79,12 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
   }
 
   if (attachment && asset.originalFileName) {
-    const filename = encodeURI(getFilename(asset, servedSize))
+    // Playback downloads serve Immich's transcode, so the filename extension
+    // must follow the response's content-type, not the original file's.
+    const playbackMime = useVideoPlayback
+      ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
+      : undefined
+    const filename = encodeURI(getFilename(asset, servedSize, playbackMime))
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
   }
   headerList.forEach(header => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AssetType, ImageSize } from '../src/types'
 import type { Asset } from '../src/types'
-import { resolveImageEndpoint, requiresOriginal } from '../src/gallery/sizing'
+import { isVideoAsset, resolveDownloadEndpoint, resolveImageEndpoint, requiresOriginal } from '../src/gallery/sizing'
 
 /*
   resolveImageEndpoint reads `ipp.maxDownloadQuality` and `ipp.maxZoomQuality`
@@ -44,6 +44,14 @@ describe('requiresOriginal', () => {
     expect(requiresOriginal(gif)).toBe(true)
     expect(requiresOriginal(jpeg)).toBe(false)
     expect(requiresOriginal(heic)).toBe(false)
+  })
+})
+
+describe('isVideoAsset', () => {
+  it('accepts either the asset type or the original MIME type as the video signal', () => {
+    expect(isVideoAsset(video)).toBe(true)
+    expect(isVideoAsset(videoMimeImage)).toBe(true)
+    expect(isVideoAsset(jpeg)).toBe(false)
   })
 })
 
@@ -120,5 +128,36 @@ describe('gif / video (requiresOriginal) - always the original file, ceilings by
     for (const a of [gif, video, videoMimeImage]) {
       expect(resolveImageEndpoint(ImageSize.thumbnail, a).servedSize).toBe(ImageSize.thumbnail)
     }
+  })
+})
+
+describe('download endpoint', () => {
+  it('keeps videos on /original when Immich allows original downloads', () => {
+    cfg['ipp.maxDownloadQuality'] = 'preview'
+    expect(resolveDownloadEndpoint(video, true)).toEqual({
+      subpath: '/original', attachment: true, servedSize: ImageSize.original
+    })
+  })
+
+  it('falls back to video playback when Immich blocks original downloads', () => {
+    cfg['ipp.maxDownloadQuality'] = 'preview'
+    expect(resolveDownloadEndpoint(video, false)).toEqual({
+      subpath: '/video/playback', attachment: true, servedSize: ImageSize.original
+    })
+    expect(resolveDownloadEndpoint(videoMimeImage, false).subpath).toBe('/video/playback')
+  })
+
+  it('keeps image downloads on the maxDownloadQuality policy', () => {
+    cfg['ipp.maxDownloadQuality'] = 'preview'
+    expect(resolveDownloadEndpoint(jpeg, false)).toEqual({
+      subpath: '/thumbnail', sizeQueryParam: 'preview', attachment: true, servedSize: ImageSize.preview
+    })
+  })
+
+  it('keeps animated image downloads on /original', () => {
+    cfg['ipp.maxDownloadQuality'] = 'preview'
+    expect(resolveDownloadEndpoint(gif, false)).toEqual({
+      subpath: '/original', attachment: true, servedSize: ImageSize.original
+    })
   })
 })

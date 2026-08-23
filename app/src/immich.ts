@@ -209,7 +209,7 @@ export async function handleShareRequest (req: IncomingShareRequest, res: Respon
     if ((directImage || directVideo) && !req.password) {
       // Output the asset directly rather than a gallery page, unless it's a
       // password-protected link
-      await assetBuffer(req, res, link.assets[0], ImageSize.preview)
+      await assetBuffer(req, res, link.assets[0], ImageSize.preview, link, directVideo)
     } else {
       // Show a gallery page
       const openItem = getConfigOption('ipp.gallery.singleItemAutoOpen', true) ? 1 : 0
