@@ -1,8 +1,8 @@
 # Running IPP on a single domain with Immich
 
-Because everything related to IPP happens within the `/share` path,
+Because everything related to IPP happens within the `/share` and `/s` paths,
 you can serve Immich and IPP on the same domain by configuring your reverse
-proxy to send all `/share/*` requests to IPP.
+proxy to send all `/share/*` and `/s/*` requests to IPP.
 
 ## Caddy
 
@@ -11,7 +11,7 @@ proxy to send all `/share/*` requests to IPP.
 ```
 https://your-domain.com {
     # Immich Public Proxy paths
-    @public path /share /share/*
+    @public path /share /share/* /s/*
     handle @public {
         # Your IPP server and port
         reverse_proxy YOUR_SERVER:3000

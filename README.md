@@ -98,9 +98,14 @@ run into video playback issues. See [Troubleshooting](#troubleshooting) for more
 
 #### Running alongside Immich on a single domain
 
-Because all IPP paths are under `/share/...`, you can run Immich Public Proxy and Immich on the same domain.
+Because all IPP paths are under `/share/...` and `/s/...`, you can run Immich Public Proxy and Immich on the same domain.
 
 See the instructions here: [Running on a single domain](./docs/running-on-single-domain.md).
+
+#### Redirecting your root domain to a share
+
+Want `photos.yourdomain.net` to open a specific album instead of the IPP landing page? You can do this with your
+reverse proxy - see [Redirecting your root domain to a share](./docs/redirect-root-to-share.md).
 
 ### Install with Kubernetes
 
@@ -124,6 +129,7 @@ https://your-proxy-url.com/share/ffSw63qnIYMtpmg0RNvOui0Dpio7BbxsObjvH8YZaobIjIA
 ```
 
 The part after `/share/` is Immich's shared link public ID (called the `key` [in the docs](https://immich.app/docs/api/get-my-shared-link)).
+For shared links with a named slug, the link will use the slug instead, e.g. `https://your-proxy-url.com/s/my-album`.
 
 **Immich Public Proxy** takes that key and makes an API call to your Immich instance over your local network, to ask what
 photos or videos are shared in that share URL.
@@ -151,9 +157,9 @@ however my goal with this project is to keep it as lean as possible.
 Due to the sensitivity of data contained within Immich, this project optimises for auditability: the code 
 stays small enough that someone with coding experience can review it for security-relevant behavior.
 
-The most basic rule for this project is that it has **read-only** access to Immich.
-
-Things that will not be considered for this project are:
+The most basic rule for this project is that it has **read-only** access to Immich. Things that will not be considered for this project are:
 
 - Anything that modifies Immich or its files in any way. If it requires an API key or privileged accesss, it won't be considered as a new feature.
 - Uploading photos (see above).
+
+The second rule is that "IPP is stateless and does not know anything about your Immich instance". Anything that would require storing a share key (i.e. the code which gives you access to a share) is unlikely to be added.
