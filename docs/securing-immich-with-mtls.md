@@ -2,9 +2,11 @@
 
 Immich supports using a custom client certificate on both web and mobile apps, so it's one of the easiest and safest ways to limit access to only clients of your choice.
 
+This guide is about Immich rather than IPP: it locks Immich itself down so that only IPP is reachable from the internet, the setup described in [Why not expose Immich directly?](/introduction#why-not-expose-immich-directly). The reverse-proxy examples below apply mTLS to Immich only; IPP stays open to the public.
+
 ## Authenticating with mutual TLS
 
-The process of generating the certificates is the same regardless of which reverse proxy you use. Just make sure to place the folder "certs/" under a volume that is mounted to your reverse proxy container.
+The process of generating the certificates is the same regardless of which reverse proxy you use. Place the resulting `certs/` folder inside a volume that is mounted into your reverse proxy container: `./data/certs` for the Caddy example below, `./config/certs` for Traefik.
 
 ### Generate your client certificate
 
@@ -31,7 +33,7 @@ echo
 echo "Please enter a STRONG password. Many clients *require* a password for you to be able to import the certificate, and you want to protect it."
 echo
 
-# Convert the cerificate to PKCS12 format (for import into browser)
+# Convert the certificate to PKCS12 format (for import into browser)
 openssl pkcs12 -export -out certs/client.pfx -inkey certs/client.key -in certs/client.crt
 
 # Clean up
@@ -59,12 +61,12 @@ services:
 ```
 ### Configure Caddyfile
 
-```Caddyfile
+```
 https://immich.mydomain.com {
     tls {
         client_auth {
             mode require_and_verify
-            trusted_ca_cert_file /data/client_certs/client.crt
+            trusted_ca_cert_file /data/certs/client-ca.crt
         }
     }
     reverse_proxy internal_server.lan:2283
@@ -89,7 +91,7 @@ services:
       - ./config:/etc/traefik
 ```
 
-### Configure Traefik dynamic file:
+### Configure Traefik dynamic file
 ```yaml
 http:
   services:
@@ -119,6 +121,6 @@ tls:
         - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
       clientAuth:
         caFiles:
-          - /etc/traefik/certs/client.crt
+          - /etc/traefik/certs/client-ca.crt
         clientAuthType: RequireAndVerifyClientCert
 ```

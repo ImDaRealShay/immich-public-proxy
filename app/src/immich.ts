@@ -420,6 +420,19 @@ function timelineBucketToAssets (bucket: TimelineBucketAssets): Asset[] {
 }
 
 /**
+ * Normalise a `/timeline/buckets` key for the `/timeline/bucket` lookup.
+ *
+ * Immich lists buckets as bare UTC dates (`2026-06-01`) but matches the
+ * lookup by casting the string back to a timestamp in Postgres's session
+ * timezone. On a non-UTC database that lands in the previous month and the
+ * bucket comes back empty - every album shows zero photos #260. The explicit
+ * `T00:00:00.000Z` form is what Immich's web client sends: (immich-app/immich#22672).
+ */
+export function utcBucketKey (timeBucket: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(timeBucket) ? timeBucket + 'T00:00:00.000Z' : timeBucket
+}
+
+/**
  * Enumerate an album's assets via Immich's timeline API, scoped by album id +
  * shared-link key. `GET /timeline/buckets` lists the time buckets (months),
  * then one `GET /timeline/bucket` per bucket returns that bucket's assets in
@@ -446,7 +459,7 @@ async function fetchAlbumAssets (albumId: string, keyType: KeyType, key: string,
     const perBucket = await Promise.all((buckets || []).map(async (bucket) => {
       const res = await fetch(buildUrl(apiUrl() + '/timeline/bucket', {
         albumId,
-        timeBucket: bucket.timeBucket,
+        timeBucket: utcBucketKey(bucket.timeBucket),
         [keyType]: key
       }), { headers })
       if (!res.ok) {

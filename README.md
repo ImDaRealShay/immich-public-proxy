@@ -23,143 +23,48 @@ serving straight out of my own Immich instance.
 Setup takes less than a minute, and you never need to touch it again as all of your sharing stays managed within Immich.
 
 <p align="center" width="100%">
-<img src="docs/screenshot.webp" width="602" height="414" border="1px solid white">
+<img src="docs/public/screenshot.webp" width="602" height="414" border="1px solid white">
 </p>
-
-### Table of Contents
-
-- [About this project](#about-this-project)
-- [Installation](#installation)
-- [How to use it](#how-to-use-it)
-- [How it works](#how-it-works)
-- [Configuration](https://docs.ipp.nz/config/)
-- [Troubleshooting](#troubleshooting)
-- [Feature requests](#feature-requests)
 
 ## About this project
 
-[Immich](https://github.com/immich-app/immich) is a wonderful bit of software, but since it holds all your private photos it's 
+[Immich](https://github.com/immich-app/immich) is a wonderful bit of software, but since it holds all your private photos it's
 best to keep it fully locked down. This presents a problem when you want to share a photo or a gallery with someone.
 
 **Immich Public Proxy** provides a barrier of security between the public and Immich, and _only_ allows through requests
-which you have publicly shared.
+which you have publicly shared. It is stateless, needs no API key, and knows nothing about your Immich instance beyond
+what you have shared.
 
-It is stateless and does not know anything about your Immich instance. It does not require an API key which reduces the attack 
-surface even further. The only things that the proxy can access are photos that you have made publicly available in Immich. 
+Read more in the [Introduction](https://docs.ipp.nz/introduction), including
+[why not just expose Immich's `/share/` path](https://docs.ipp.nz/introduction#why-not-expose-immich-directly).
 
-### Features
-
-- Supports sharing photos and videos.
-- Supports password-protected shares.
-- If sharing a single image, by default the link will directly open the image file so that you can embed it anywhere you would a normal image. (This is configurable.)
-- Gallery styled to match Immich's native look, with light/dark mode following the visitor's system preference.
-- Handles very large shares smoothly thanks to virtualized rendering - the browser only keeps tiles near the viewport in the DOM.
-- Optional multi-select mode so visitors can pick specific photos and download them together as a zip.
-- Optional date-grouped view (off by default), with month headers like "December 2024".
-- All usage happens through Immich - you won't need to touch this app after the initial configuration.
-
-### Why not simply put Immich behind a reverse proxy and only expose the `/share/` path to the public?
-
-To view a shared album in Immich, you need access to the `/api/` path. If you're sharing a gallery with the public, you need
-to make that path public. Any existing or future vulnerability has the potential to compromise your Immich instance.
-
-For me, the ideal setup is to have Immich secured privately behind mTLS or VPN, and only allow public access to Immich Public Proxy.
-Here is an example setup for [securing Immich behind mTLS](./docs/securing-immich-with-mtls.md) using a reverse proxy such as Caddy or Traefik.
-
-## Installation
-
-### Install with Docker / Podman
+## Quick start
 
 1. Download the [docker-compose.yml](https://github.com/alangrainger/immich-public-proxy/blob/main/docker-compose.yml) file.
+2. Set `IMMICH_URL` to the local (not public) URL of your Immich server, and `PUBLIC_BASE_URL` to the public URL of IPP.
+3. Run `docker-compose up -d` and check that `https://your-proxy-url.com/share/healthcheck` responds.
+4. In Immich's **Server Settings**, set the "External domain" to your IPP URL. Every link Immich generates from now on
+   points at the proxy.
 
-2. Update the value for `IMMICH_URL` in your docker-compose file to point to your local URL for Immich. This should not be a public URL.
+If you use Cloudflare, set your `/share/video/*` path to Bypass Cache or videos may not play.
 
-3. Update or remove the value for `PUBLIC_BASE_URL`. This should be the public base URL for IPP, without a trailing slash (example `https://your-proxy-url.com`). 
-If you remove this value, it will dynamically generate it based on the request hostname. This can be useful if you are [serving from multiple domains](#serving-from-multiple-domains).
+Full instructions, including Kubernetes: **[Installation](https://docs.ipp.nz/installation)**.
 
-4. _Optional_: Add `IPP_PORT` to environment variables in your docker-compose file to change the port from the default of 3000. 
-This is the _internal_ webserver port inside the container. Most people will not need to do this. Note that you will have to change the `ports` and `healthcheck` sections accordingly.
+## Documentation
 
-5. Start the docker container. You can test that it is working by visiting `https://your-proxy-url.com/share/healthcheck`. 
-Check the container console output for any error messages.
+Everything is at **[docs.ipp.nz](https://docs.ipp.nz)**:
 
-```bash
-docker-compose up -d
-```
-
-5. Set the "External domain" in your Immich **Server Settings** to be whatever domain you use to publicly serve Immich Public Proxy:
-
-<img src="docs/server-settings.png" width="400" height="182">
-
-Now whenever you share an image or gallery through Immich, it will automatically create the correct public path for you.
-
-🚨 **IMPORTANT**: If you're using Cloudflare, please make sure to set your `/share/video/*` path to Bypass Cache, otherwise you may
-run into video playback issues. See [Troubleshooting](#troubleshooting) for more information.
-
-#### Running alongside Immich on a single domain
-
-Because all IPP paths are under `/share/...` and `/s/...`, you can run Immich Public Proxy and Immich on the same domain.
-
-See the instructions here: [Running on a single domain](./docs/running-on-single-domain.md).
-
-#### Redirecting your root domain to a share
-
-Want `photos.yourdomain.net` to open a specific album instead of the IPP landing page? You can do this with your
-reverse proxy - see [Redirecting your root domain to a share](./docs/redirect-root-to-share.md).
-
-### Install with Kubernetes
-
-[See the docs here](docs/kubernetes.md).
-
-## How to use it
-
-Other than the initial configuration above, everything else is managed through Immich.
-
-You share your photos/videos as normal through Immich. Because you have set the **External domain** in Immich settings
-to be the URL for your proxy app, the links that Immich generates will automaticaly have the correct URL:
-
-<img src="docs/share-link.webp" width="751" height="524">
-
-## How it works
-
-When the proxy receives a request, it will come as a link like this:
-
-```
-https://your-proxy-url.com/share/ffSw63qnIYMtpmg0RNvOui0Dpio7BbxsObjvH8YZaobIjIAzl5n7zTX5d6EDHdOYEvo
-```
-
-The part after `/share/` is Immich's shared link public ID (called the `key` [in the docs](https://immich.app/docs/api/get-my-shared-link)).
-For shared links with a named slug, the link will use the slug instead, e.g. `https://your-proxy-url.com/s/my-album`.
-
-**Immich Public Proxy** takes that key and makes an API call to your Immich instance over your local network, to ask what
-photos or videos are shared in that share URL.
-
-If it is a valid share URL, the proxy fetches just those assets via local API and returns them to the visitor as an
-individual image or gallery.
-
-If the shared link has expired or any of the assets have been put in the Immich trash, it will not return those.
-
-All incoming data is validated and sanitised, and anything unexpected is simply dropped with a 404.
-
-## Configuration
-
-See **[the configuration docs](https://docs.ipp.nz/config/)** for the full reference.
-
-## Troubleshooting
-
-See the [troubleshooting docs](https://docs.ipp.nz/troubleshooting).
+- [Installation](https://docs.ipp.nz/installation) and [Sharing from Immich](https://docs.ipp.nz/how-to-use)
+- [Configuration](https://docs.ipp.nz/config/): downloads, gallery layout, lightbox, metadata privacy, error responses
+- Guides: [single domain with Immich](https://docs.ipp.nz/running-on-single-domain),
+  [redirect your root domain to a share](https://docs.ipp.nz/redirect-root-to-share),
+  [securing Immich with mTLS](https://docs.ipp.nz/securing-immich-with-mtls)
+- [Troubleshooting](https://docs.ipp.nz/troubleshooting)
 
 ## Feature requests
 
 You can [add feature requests here](https://github.com/alangrainger/immich-public-proxy/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop),
 however my goal with this project is to keep it as lean as possible.
 
-Due to the sensitivity of data contained within Immich, this project optimises for auditability: the code 
-stays small enough that someone with coding experience can review it for security-relevant behavior.
-
-The most basic rule for this project is that it has **read-only** access to Immich. Things that will not be considered for this project are:
-
-- Anything that modifies Immich or its files in any way. If it requires an API key or privileged accesss, it won't be considered as a new feature.
-- Uploading photos (see above).
-
-The second rule is that "IPP is stateless and does not know anything about your Immich instance". Anything that would require storing a share key (i.e. the code which gives you access to a share) is unlikely to be added.
+IPP has **read-only** access to Immich and stores nothing: anything that needs an API key, modifies Immich, or would
+require storing a share key won't be considered. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full list.

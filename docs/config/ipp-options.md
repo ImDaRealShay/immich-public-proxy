@@ -1,6 +1,6 @@
-# IPP options
+# General options
 
-Top-level options under `ipp.*`.
+Top-level options under `ipp.*` that don't belong to the [Gallery](/config/gallery), [Lightbox](/config/lightbox) or [Metadata](/config/metadata) groups.
 
 ## Example
 
@@ -19,7 +19,20 @@ Serve full-resolution images both when zooming in the lightbox and when download
 
 **Type:** `object`
 
-Change the headers sent with your web responses. By default there is `cache-control` and CORS added.
+Change the headers sent with your web responses. The default is a 30-day `Cache-Control` and a permissive CORS header.
+These apply to photos, videos and static files. The "download all" zip is always sent with `Cache-Control: no-store`
+to prevent CDN issues, and the gallery page uses its own [`gallery.cacheTime`](/config/gallery#cachetime).
+
+```json
+{
+  "ipp": {
+    "responseHeaders": {
+      "Cache-Control": "public, max-age=2592000",
+      "Access-Control-Allow-Origin": "*"
+    }
+  }
+}
+```
 
 ## `maxDownloadQuality`
 
@@ -75,21 +88,15 @@ The bulk-zip and per-asset buttons can be toggled independently once downloads a
 >
 > To guarantee full-quality downloads of everything, leave the share's download permission on in Immich.
 
-## `downloadFromImmichConcurrencyLimit`
-
-**Type:** `int` · **Default:** `20`
-
-Maximum number of assets IPP will fetch from your Immich server in parallel when building a "download all" zip. Lower this if your Immich server is slow or you see download timeouts on large albums; raise it for faster downloads if your server can handle the load.
-
 ## `allowSlugLinks`
 
-**Type:** `bool`
+**Type:** `bool` · **Default:** `true`
 
-Enable/disable the custom URL links.
+Serve shared links that have a custom URL in Immich at `/s/<slug>` as well as `/share/<key>`. Set to `false` to return a 404 for slug links, so that only the key form works.
 
 ## `showHomePage`
 
-**Type:** `bool`
+**Type:** `bool` · **Default:** `true`
 
 Set to `false` to remove the IPP shield page at `/` and at `/share`.
 

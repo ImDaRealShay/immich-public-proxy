@@ -1,22 +1,19 @@
 import { assetFetchUrl, authHeadersForAsset } from '../immich'
 import { Response } from 'express-serve-static-core'
 import { Asset, SharedLink } from '../types'
-import { getNumericConfigOption } from '../config/access'
 import { log } from '../utils/log'
 import archiver, { Archiver } from 'archiver'
 import { sanitize } from '../utils/sanitize'
-import { Readable } from 'stream'
-import { pipeline } from 'stream/promises'
-import { promises as fs, createWriteStream } from 'fs'
-import { tmpdir } from 'os'
-import { join } from 'path'
 import { resolveDownloadEndpoint, ImageEndpoint } from '../gallery/sizing'
 import { title } from '../share'
 import { getFilename } from '../gallery/filename'
-import { createLimiter } from '../utils/limiter'
-import { createIdleTimeoutStream } from '../utils/idleTimeoutStream'
+import { readableFromWeb } from '../utils/webStream'
+import { respondToInvalidRequest } from '../invalidRequestHandler'
 
-const STAGING_DIR_PREFIX = 'ipp-zip-'
+/** Attempts to get response headers from Immich for one asset before giving up. */
+const MAX_ATTEMPTS = 3
+/** How long to wait for Immich's response headers on each attempt. */
+const HEADER_TIMEOUT_MS = 20_000
 
 /**
  * Download all assets in a share as a zip file.
@@ -25,173 +22,172 @@ export async function downloadAll (res: Response, share: SharedLink) {
   await downloadAssets(res, share, share.assets)
 }
 
-/**
- * Delete staging directories left over from a prior run that crashed before
- * its `finally` block could clean up. Intended to run once at startup.
- *
- * A live download holds its staging dir open for the duration of the zip;
- * `maxAgeMs` should comfortably exceed any realistic download time so we
- * never delete a dir from a still-running download in another worker.
- */
-export async function sweepStaleStagingDirs (maxAgeMs = 60 * 60 * 1000) {
-  const root = tmpdir()
-  const cutoff = Date.now() - maxAgeMs
-  const entries = await fs.readdir(root).catch(() => [] as string[])
-  for (const name of entries) {
-    if (!name.startsWith(STAGING_DIR_PREFIX)) continue
-    const path = join(root, name)
-    const stat = await fs.stat(path).catch(() => null)
-    if (!stat || stat.mtimeMs >= cutoff) continue
-    await fs.rm(path, { recursive: true, force: true }).catch(e => {
-      log.warn(`Failed to sweep stale staging dir ${path}: ${e instanceof Error ? e.message : String(e)}`)
-    })
-  }
-}
-
-type StagedAsset = { tempfile: string, asset: Asset, endpoint: ImageEndpoint, servedMime?: string }
+type FetchedAsset = { response: globalThis.Response, asset: Asset, endpoint: ImageEndpoint, servedMime?: string, url: string }
 type Failure = { asset: Asset, url: string, status?: number, error?: unknown }
-type StageOutcome = StagedAsset | { failure: Failure } | null
-
-type StagingOptions = {
-  stagingDir: string
-  concurrency: number
-  maxAttempts: number
-  headerTimeoutMs: number
-  idleTimeoutMs: number
-}
+type FetchOutcome = FetchedAsset | { failure: Failure } | null
 
 /**
  * Stream the given assets back as a zip file.
  *
  * Immich's own download service (server/src/services/download.service.ts)
- * zips files directly from local disk - no HTTP, retries, or timeouts needed.
- * We're a proxy fetching over HTTP, so the shape diverges:
+ * zips files straight off local disk. We're a proxy fetching over HTTP, so
+ * each asset is fetched from Immich and its body piped directly into the
+ * archive - nothing is staged to disk or held in memory, so a zip of any
+ * size needs only a few stream buffers #289.
  *
- *   - Bounded concurrency against the upstream Immich server.
- *   - Two-phase fetch per asset: get headers (retried with linear backoff,
- *     bounded by a 20s header-receipt timeout), then stream the body to a
- *     temp file under an idle timeout that resets on every chunk -
- *     slow-but-steady downloads survive, truly stalled ones fail fast.
- *   - Stage everything to disk first so we can detect failure BEFORE any
- *     bytes hit the client. Once we've started streaming the zip we can't
- *     recover gracefully; aborting means killing the response socket and
- *     leaving a visibly broken download. This is the alternative to silently
- *     omitting failed assets - the user gets a clear "broken" signal instead
- *     of a zip quietly missing files.
+ * Assets are fetched strictly one at a time. Archiver writes entries
+ * serially anyway, and an unread response body would hold an idle
+ * connection open on Immich for as long as the current entry takes to reach
+ * the visitor - long enough for a reverse proxy to close it. The cost is
+ * Immich's per-request overhead between entries, which is negligible next
+ * to the visitor's link speed.
  *
- * The only thing we share with Immich here is using zip STORE (no
- * compression), since photos and videos are already compressed.
+ * Failure handling:
+ *   - Headers fail (after retries) before anything has been sent: an
+ *     ordinary 404, so the visitor sees an error page rather than an empty
+ *     download. The real reason goes to the server log.
+ *   - Anything fails once the zip is on the wire: the socket is destroyed
+ *     and the visitor gets a visibly broken download. That's deliberate; the
+ *     alternative is a zip quietly missing files.
+ *   - Visitor disconnects: the upstream fetch is aborted so Immich stops
+ *     streaming, and the archive is torn down so it releases the in-flight
+ *     entry #284.
+ *
+ * There is no body-level idle timeout: with the visitor as the sink, a slow
+ * or paused client stalls the flow just like a stalled upstream would, so a
+ * timer on the body can't tell them apart. The header timeout still bounds
+ * how long Immich may take to start answering.
+ *
+ * Zip entries use STORE (no compression), since photos and videos are
+ * already compressed.
  */
 export async function downloadAssets (res: Response, share: SharedLink, assets: Asset[]) {
+  const archive = archiver('zip', { store: true })
+  // Without a listener, an archiver 'error' emission would crash the process.
+  archive.on('error', e => log(`Archiver error for share ${share.key}: ${e.message}`))
+
+  const controller = new AbortController()
+  let clientGone = false
+  let resolveClosed!: () => void
+  const resClosed = new Promise<void>(resolve => { resolveClosed = resolve })
+  const onClose = () => {
+    if (res.writableFinished) return
+    clientGone = true
+    controller.abort()
+    resolveClosed()
+  }
+  res.once('close', onClose)
+  if (res.closed) onClose()
+
+  // Headers and piping are deferred until the first asset has arrived, so a
+  // failure before then can still be answered with a normal error response.
+  let piped = false
+
+  for (const asset of assets) {
+    if (controller.signal.aborted) break
+    const fetched = await fetchOne(share, asset, controller.signal)
+    if (fetched === null) break // aborted while waiting on Immich
+    if ('failure' in fetched) {
+      if (!piped) {
+        archive.abort()
+        respondToInvalidRequest(res, 404, describeFailure(share, fetched.failure))
+        return
+      }
+      abortDownload(archive, res, share, fetched.failure)
+      return
+    }
+    if (!piped) {
+      startZipResponse(res, share, archive)
+      piped = true
+    }
+    const entry = await appendEntry(archive, fetched)
+    if (entry !== 'done') {
+      if (clientGone) break
+      controller.abort()
+      abortDownload(archive, res, share, { asset: fetched.asset, url: fetched.url, error: entry.error })
+      return
+    }
+  }
+
+  if (clientGone) {
+    log(`Zip download for share ${share.key} cancelled by client`)
+    teardownArchive(archive, res)
+    return
+  }
+  if (!piped) startZipResponse(res, share, archive) // empty selection: still a valid (empty) zip
+
+  // finalize() resolves when archiver has finished writing the zip output.
+  // Raced against client disconnect because finalize() never settles once
+  // the response is destroyed. The inline rejection handler also stops a
+  // late finalize failure becoming an unhandled rejection after a lost race.
+  const finished = archive.finalize().then(() => 'done' as const, () => 'error' as const)
+  const outcome = await Promise.race([finished, resClosed.then(() => 'closed' as const)])
+  if (outcome !== 'done') {
+    if (outcome === 'closed') log(`Zip download for share ${share.key} cancelled by client`)
+    // 'error' was already logged by the archiver error listener
+    teardownArchive(archive, res)
+  }
+}
+
+function startZipResponse (res: Response, share: SharedLink, archive: Archiver) {
   res.setHeader('Content-Type', 'application/zip')
   let filename = (sanitize(title(share)) || 'photos') + '.zip'
   filename = encodeURI(filename)
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
   // Hint to intermediate proxies (Nginx, etc.) not to buffer this response.
   res.setHeader('X-Accel-Buffering', 'no')
-  const archive = archiver('zip', { store: true })
-  // Without a listener, an archiver 'error' emission would crash the process.
-  archive.on('error', e => log(`Archiver error for share ${share.key}: ${e.message}`))
+  res.setHeader('Cache-Control', 'no-store')
   archive.pipe(res)
+}
 
-  const options: StagingOptions = {
-    stagingDir: await fs.mkdtemp(join(tmpdir(), STAGING_DIR_PREFIX)),
-    concurrency: Math.max(1, getNumericConfigOption('ipp.downloadFromImmichConcurrencyLimit', 20)),
-    maxAttempts: 3,
-    headerTimeoutMs: 20_000,
-    idleTimeoutMs: 20_000
-  }
-
-  const controller = new AbortController()
-  let clientGone = false
-  let resolveClosed!: () => void
-  const resClosed = new Promise<void>(resolve => { resolveClosed = resolve })
-  res.once('close', () => {
-    if (res.writableFinished) return
-    clientGone = true
-    controller.abort()
-    resolveClosed()
+/**
+ * Pipe one fetched body into the archive and wait for the entry to be fully
+ * written (archiver's 'entry' event fires after the data descriptor, which
+ * is later than the body's own end).
+ *
+ * On a body error compress-commons forwards the error to archiver's 'error'
+ * event and then moves on to the next queued entry, so the caller must abort
+ * the download itself. The body listener covers the tick between append()
+ * and archiver attaching its own handler, when an unhandled 'error' would
+ * otherwise crash the process.
+ */
+function appendEntry (archive: Archiver, fetched: FetchedAsset): Promise<'done' | { error: unknown }> {
+  return new Promise(resolve => {
+    if (!fetched.response.body) {
+      resolve({ error: new Error('Upstream response has no body') })
+      return
+    }
+    const body = readableFromWeb(fetched.response.body)
+    const cleanup = () => {
+      archive.off('entry', onEntry)
+      archive.off('error', onError)
+      body.off('error', onError)
+    }
+    const onEntry = () => { cleanup(); resolve('done') }
+    const onError = (error: unknown) => { cleanup(); resolve({ error }) }
+    archive.once('entry', onEntry)
+    archive.once('error', onError)
+    body.once('error', onError)
+    archive.append(body, { name: getFilename(fetched.asset, fetched.endpoint.servedSize, fetched.servedMime) })
   })
-
-  try {
-    const stages = stageAssetsToDisk(share, assets, options, controller.signal)
-    const failure = await archiveStaged(archive, stages, controller)
-    if (clientGone) {
-      log(`Zip download for share ${share.key} cancelled by client`)
-      teardownArchive(archive, res)
-      return
-    }
-    if (failure) {
-      abortDownload(archive, res, share, failure)
-      return
-    }
-    // finalize() resolves when archiver has finished writing the zip output,
-    // which means every queued tempfile has been read. Safe to delete after.
-    // Raced against client disconnect because finalize() never settles once
-    // the response is destroyed. The inline rejection handler also stops a
-    // late finalize failure becoming an unhandled rejection after a lost race.
-    const finished = archive.finalize().then(() => 'done' as const, () => 'error' as const)
-    const outcome = await Promise.race([finished, resClosed.then(() => 'closed' as const)])
-    if (outcome !== 'done') {
-      if (outcome === 'closed') log(`Zip download for share ${share.key} cancelled by client`)
-      // 'error' was already logged by the archiver error listener
-      teardownArchive(archive, res)
-    }
-  } finally {
-    await fs.rm(options.stagingDir, { recursive: true, force: true }).catch(() => { /* best effort */ })
-  }
 }
 
-/**
- * Kick off staging for every asset at once; the limiter caps how many run
- * concurrently. Returns the promise array in input order so the consumer can
- * archive in order.
- */
-function stageAssetsToDisk (share: SharedLink, assets: Asset[], options: StagingOptions, signal: AbortSignal): Promise<StageOutcome>[] {
-  const limit = createLimiter(options.concurrency)
-  return assets.map((asset, index) => limit(() => stageOne(share, asset, index, options, signal)))
-}
-
-/**
- * Walk the staged assets in input order, adding each to the archive as soon
- * as it lands. The first failure aborts the download signal (so unstarted
- * stages bail out and in-flight fetches are cancelled) and is returned to the
- * caller. We wait for in-flight stages to settle before returning so the
- * staging dir is safe to delete.
- */
-async function archiveStaged (archive: Archiver, stages: Promise<StageOutcome>[], controller: AbortController): Promise<Failure | null> {
-  let failure: Failure | null = null
-  for (const stage of stages) {
-    const result = await stage
-    if (result === null) break // aborted by an earlier stage
-    if ('failure' in result) {
-      controller.abort()
-      failure = result.failure
-      break
-    }
-    // archive.file queues the entry; archiver lazily opens and reads it.
-    archive.file(result.tempfile, { name: getFilename(result.asset, result.endpoint.servedSize, result.servedMime) })
-  }
-
-  // After abort, wait for any in-flight stages to settle before we delete
-  // the staging dir. stageOne never rejects (errors become failure objects),
-  // so a plain Promise.all is safe.
-  if (controller.signal.aborted) await Promise.all(stages)
-  return failure
-}
-
-function abortDownload (archive: Archiver, res: Response, share: SharedLink, failure: Failure) {
+function describeFailure (share: SharedLink, failure: Failure): string {
   const detail = failure.status !== undefined
     ? `HTTP ${failure.status}`
     : (failure.error instanceof Error ? failure.error.message : String(failure.error))
-  log(`Aborting zip download for share ${share.key}: failed to fetch asset ${failure.asset.id} from ${failure.url} (${detail})`)
+  return `Zip download for share ${share.key}: failed to fetch asset ${failure.asset.id} from ${failure.url} (${detail})`
+}
+
+function abortDownload (archive: Archiver, res: Response, share: SharedLink, failure: Failure) {
+  log('Aborting ' + describeFailure(share, failure))
   teardownArchive(archive, res)
 }
 
 /**
  * Tear down an aborted archive so it releases its resources. `abort()` alone
  * is not enough; it kills the queue but leaves any in-flight entry paused,
- * holding an open read fd on its tempfile forever #284
+ * holding its source stream open forever #284
  */
 function teardownArchive (archive: Archiver, res: Response) {
   archive.abort()
@@ -201,22 +197,20 @@ function teardownArchive (archive: Archiver, res: Response) {
 }
 
 /**
- * Fetch one asset's upstream bytes into a temp file. Two phases:
- *   1. fetchHeadersWithRetry - get the response headers, retried on
- *      transient failure.
- *   2. streamBodyToTempFile - drain the body to disk under an idle timeout.
+ * Fetch one asset's response headers from Immich, retried on transient
+ * failure. The body is left unread for the caller to pipe.
  *
- * Returns the staged asset on success, a wrapped Failure on error, or null
- * if we observed the abort flag and bailed without doing work.
+ * Returns the fetched asset on success, a wrapped Failure on error, or null
+ * if the download was aborted before we got an answer.
  */
-async function stageOne (share: SharedLink, asset: Asset, index: number, options: StagingOptions, signal: AbortSignal): Promise<StageOutcome> {
+async function fetchOne (share: SharedLink, asset: Asset, signal: AbortSignal): Promise<FetchOutcome> {
   if (signal.aborted) return null
 
   const endpoint = resolveDownloadEndpoint(asset, share.allowDownload !== false)
   const url = assetFetchUrl(asset, endpoint.subpath, endpoint.sizeQueryParam)
   const reqAuthHeaders = await authHeadersForAsset(asset)
 
-  const fetched = await fetchHeadersWithRetry(url, reqAuthHeaders, options.maxAttempts, options.headerTimeoutMs, signal, asset)
+  const fetched = await fetchHeadersWithRetry(url, reqAuthHeaders, MAX_ATTEMPTS, HEADER_TIMEOUT_MS, signal, asset)
   if (fetched === null) return null
   if ('failure' in fetched) return { failure: { ...fetched.failure, asset, url } }
 
@@ -224,7 +218,7 @@ async function stageOne (share: SharedLink, asset: Asset, index: number, options
   // getFilename would fall back to an id-based name. The `/original` response
   // carries the real name in Content-Disposition and the mime in Content-Type,
   // so recover them from the headers we already fetched - no extra calls.
-  const stagedAsset = asset.originalFileName ? asset : enrichFromHeaders(asset, fetched.response)
+  const namedAsset = asset.originalFileName ? asset : enrichFromHeaders(asset, fetched.response)
 
   // Playback-fallback downloads serve Immich's transcode; carry the response
   // content-type so the zip entry's extension matches the actual bytes.
@@ -232,12 +226,7 @@ async function stageOne (share: SharedLink, asset: Asset, index: number, options
     ? (fetched.response.headers.get('content-type') || '').split(';')[0].trim() || undefined
     : undefined
 
-  // Use the array index in the path so we never collide on duplicate IDs.
-  const tempfile = join(options.stagingDir, `${index}-${asset.id}`)
-  const streamed = await streamBodyToTempFile(fetched.response, tempfile, options.idleTimeoutMs)
-  if ('failure' in streamed) return { failure: { asset, url, error: streamed.failure } }
-
-  return { tempfile, asset: stagedAsset, endpoint, servedMime }
+  return { response: fetched.response, asset: namedAsset, endpoint, servedMime, url }
 }
 
 /**
@@ -290,8 +279,7 @@ type HeaderFetchOutcome =
  * because the signal we pass to fetch stays bound to the response body - if
  * the timeout fires after headers arrive but while the body is still
  * streaming, the body read errors out. We clear the header timer as soon
- * as we have a response; downstream the idle-timeout transform guards
- * against stalled bodies.
+ * as we have a response.
  *
  * The download-wide `signal` is combined into the fetch signal so that an
  * aborted download (asset failure or client disconnect) cancels the header
@@ -332,25 +320,4 @@ async function fetchHeadersWithRetry (
     }
   }
   return { failure: { status: lastStatus, error: lastError } }
-}
-
-/**
- * Stream `response.body` to `tempfile`, guarded by an idle timeout. The
- * idle stream destroys itself if no chunk arrives within `idleMs`, killing
- * the pipeline with a clear error.
- */
-async function streamBodyToTempFile (response: globalThis.Response, tempfile: string, idleMs: number): Promise<{ ok: true } | { failure: unknown }> {
-  if (!response.body) return { failure: new Error('Upstream response has no body') }
-  // `response.body` is the global/undici ReadableStream<Uint8Array>;
-  // Readable.fromWeb expects node:stream/web's ReadableStream<any>. The
-  // two are structurally compatible at runtime but TS sees them as
-  // distinct nominal types, so a cast is needed.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const body = Readable.fromWeb(response.body as any)
-  try {
-    await pipeline(body, createIdleTimeoutStream(idleMs), createWriteStream(tempfile))
-    return { ok: true }
-  } catch (e) {
-    return { failure: e }
-  }
 }

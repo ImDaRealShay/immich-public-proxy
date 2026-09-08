@@ -85,6 +85,6 @@ Show the bulk-zip download UI - the "download all" button in the header and the 
 
 ## `cacheTime`
 
-**Type:** `int`
+**Type:** `int` · **Default:** `300`
 
 How long (in seconds) browsers and any CDN may cache the gallery **page** before revalidating. Set this longer to reduce load on your server, but be aware that if you add new photos to a gallery they won't show up until the cache times out or you manually clear any downstream caches.

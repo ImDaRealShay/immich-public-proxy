@@ -16,7 +16,7 @@ import {
 import { buildAssetMetadata } from './gallery/metadata'
 import crypto from 'crypto'
 import { assetBuffer } from './stream/asset'
-import { downloadAssets, sweepStaleStagingDirs } from './stream/download'
+import { downloadAssets } from './stream/download'
 import dayjs from 'dayjs'
 import { NextFunction, Request, Response } from 'express-serve-static-core'
 import { Asset, AssetType, ImageSize, KeyType, SharedLink } from './types'
@@ -342,8 +342,8 @@ process.on('uncaughtException', (err) => {
   process.exit(1)
 })
 // Log-only: with asyncHandler routing request errors into errorHandler, a
-// stray rejection from a background task (version check, staging-dir sweep,
-// etc.) is not worth killing every in-flight request for.
+// stray rejection from a background task (the version check, etc.) is not
+// worth killing every in-flight request for.
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason)
 })
@@ -361,7 +361,4 @@ const server = app.listen(port, () => {
   // than silently serving broken album shares. Unknown/unreachable is
   // tolerated (logs a warning and continues) - see enforceMinimumImmichVersion.
   enforceMinimumImmichVersion().catch(e => console.error('Immich version check failed:', e))
-  // Clean up any zip-download staging dirs left behind by a previous
-  // run that crashed before its finally block could run
-  sweepStaleStagingDirs().catch(e => console.error('sweepStaleStagingDirs failed:', e))
 })

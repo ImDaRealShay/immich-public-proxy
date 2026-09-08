@@ -1,6 +1,6 @@
-# Upgrading & migration
+# Legacy config keys
 
-A few config keys have been renamed across versions. Existing configs continue to work via backward-compatibility shims and a startup deprecation notice.
+A few config keys have been renamed or reshaped across versions. Old configs keep working through backward-compatibility shims, with a deprecation notice logged at startup; update to the current names to silence it. For how to update IPP itself, see [Upgrading](/upgrading).
 
 ## Gallery keys moved under `ipp.gallery.*` (v2.0)
 

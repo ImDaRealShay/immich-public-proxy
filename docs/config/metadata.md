@@ -83,29 +83,3 @@ Under `ipp.showMetadata.location`. Every flag defaults to `false`, except `webLi
 | `country` | `bool` | Show country.                                                                                                                                                                                                                        |
 | `gps`     | `bool` | Show GPS coordinates.                                                                                                                                                                                                                |
 | `webLink` | `bool` | Show an "Open in OpenStreetMap" link below the coordinates. The link is rendered with `rel="noreferrer"` so the share URL is not leaked to the map provider when a viewer clicks it. Has no effect unless `gps` is also true. Default `true`. |
-
-## Example
-
-Show the description in the sidebar only (not as a lightbox caption), expose camera EXIF, and reveal place names but not the GPS coordinates:
-
-```json
-{
-  "ipp": {
-    "showMetadata": {
-      "description": { "caption": false, "sidebar": true },
-      "exif": {
-        "dateTimeOriginal": true,
-        "timeZone": true,
-        "make": true,
-        "model": true,
-        "lensModel": true,
-        "exposureTime": true,
-        "iso": true,
-        "fNumber": true,
-        "focalLength": true
-      },
-      "location": { "city": true, "state": true, "country": true }
-    }
-  }
-}
-```

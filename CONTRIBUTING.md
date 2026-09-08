@@ -65,7 +65,7 @@ app/
     thumbhash/, fonts/, images/
     style.css, photoswipe-overrides.css
   tests/                  Vitest unit tests for pure functions
-docs/                     User-facing docs linked from the README
+docs/                     User docs site (VitePress); docs/README.md explains its structure
 Dockerfile                Multi-stage build, runs as the non-root `node` user
 docker-compose.yml        Reference deployment
 ```
@@ -102,8 +102,9 @@ Required environment variables (set in `app/.env` or your shell):
 - `IMMICH_URL` - local URL to your Immich instance. Should not be public.
 - `PUBLIC_BASE_URL` - optional. Public base URL for IPP without trailing slash. Omit to derive from request hostname.
 - `IPP_PORT` - optional. Default 3000.
+- `IPP_CONFIG` - optional. Path to a config file. All variables: `docs/config/environment-variables.md`.
 
-To exercise the full gallery flow you need a real Immich instance you can hit, with at least one public share created. The README has the user-facing setup steps for spinning that up.
+To exercise the full gallery flow you need a real Immich instance you can hit, with at least one public share created. The docs site has the user-facing setup steps (`docs/installation.md`).
 
 Configuration overrides go in `app/config.json` or inline via env (see `docs/config/index.md`). Always read config through `getConfigOption('ipp.path.to.key', defaultValue)` rather than reading the JSON directly.
 
@@ -125,7 +126,7 @@ Beyond unit tests, exercise the gallery end-to-end against a real Immich instanc
 
 ## Conventions for adding code
 
-**Configuration.** New options go in `app/config.json` under the appropriate `ipp.*` namespace, read via `getConfigOption`, and documented in the relevant table in `README.md`. Prefer a group toggle plus per-field overrides over a single flat boolean when several related toggles cluster, following the `ipp.showMetadata` pattern. Existing keys keep working; if you rename one, add a backward-compat shim with a startup deprecation warning, as was done for the v2.0 gallery key rename.
+**Configuration.** New options go in `app/config.json` under the appropriate `ipp.*` namespace, read via `getConfigOption`, and documented on the page for their group under `docs/config/` (see `docs/README.md` for the conventions). Prefer a group toggle plus per-field overrides over a single flat boolean when several related toggles cluster, following the `ipp.showMetadata` pattern. Existing keys keep working; if you rename one, add a backward-compat shim with a startup deprecation warning, as was done for the v2.0 gallery key rename.
 
 **Privacy of responses.** Always return 404 for invalid or upstream-failed requests. Use `invalidRequestHandler` rather than crafting ad-hoc error responses. Do not surface Immich status codes or error bodies to the client.
 
@@ -145,6 +146,12 @@ Where to put a new function: ask what category of thing it is, not where it gets
 
 **Code style.** ESLint standard config. Run lint locally before opening a PR.
 
+## Documentation
+
+User-facing documentation is the VitePress site in `docs/`, published at https://docs.ipp.nz. Read `docs/README.md` before adding or moving a page: it sets out the four sidebar groups (Getting started, Configuration, Guides, Troubleshooting - one per kind of content in the Diátaxis sense), where each kind of new material belongs, and the page conventions. Run `npm run build` inside `docs/` before pushing; the build fails on dead internal links.
+
+The root `README.md` is a front door only: pitch, demo, quick start and links. New content goes on the site.
+
 ## Release process
 
 Releases are triggered by pushing a `v*` tag. The `.github/workflows/ci.yaml` workflow builds a multi-arch (`linux/amd64`, `linux/arm64`) image, pushes to both GHCR and Docker Hub, and attaches a build-provenance attestation to each registry.
@@ -161,7 +168,7 @@ Do not push tags as part of a PR; releases are cut by the maintainer.
 For anything non-trivial, open a [Feature Request discussion](https://github.com/alangrainger/immich-public-proxy/discussions/categories/feature-requests) first. The maintainer would rather discuss fit with the read-only/lean philosophy before you spend time on a PR.
 
 - Branch from `main`.
-- Update the README config tables if you added or changed config keys.
+- Update the page under `docs/config/` if you added or changed config keys, following `docs/README.md`.
 - If your change has a user-visible behavior, include a one-line note in the PR description about how to exercise it.
 
 ## What will not be accepted
@@ -188,5 +195,6 @@ If you are an AI coding agent working on this repo, the rules above apply to you
 - **Do not add error handling for cases that cannot happen.** Trust internal invariants. Validate only at the boundary (incoming request, Immich response).
 - **Default to writing no comments.** Add a comment only when the *why* is non-obvious: a security-relevant invariant, a workaround for a specific upstream bug, or behavior that would surprise a careful reader. Do not narrate the *what*.
 - **Match the project's existing style.** Server-side Preact SSR, TypeScript ES modules on the client (compiled by `tsc`, no bundler, no framework), plain CSS. Do not introduce new patterns without discussion.
+- **Docs changes follow `docs/README.md`.** New material goes in the sidebar group that matches its kind (tutorial, reference, guide, troubleshooting); published page paths stay stable; defaults are checked against `app/config.json`.
 
 If something in this guide conflicts with an instruction you have been given, stop and raise the conflict rather than silently working around it.

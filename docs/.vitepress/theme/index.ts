@@ -1,6 +1,5 @@
 import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
-import screenshot from '../../screenshot.webp'
 import './custom.css'
 
 const DEMO_URL = 'https://demo.ipp.nz/s/demo-gallery'
@@ -44,7 +43,7 @@ export default {
         },
         [
           h('img', {
-            src: screenshot,
+            src: '/screenshot.webp',
             alt: 'Immich Public Proxy gallery screenshot',
             style: 'width: 100%; border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);'
           })

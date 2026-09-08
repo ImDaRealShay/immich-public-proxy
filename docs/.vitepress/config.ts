@@ -1,6 +1,5 @@
 import { defineConfig } from 'vitepress'
 
-const DEMO_URL = 'https://demo.ipp.nz/s/demo-gallery'
 const REPO_URL = 'https://github.com/alangrainger/immich-public-proxy'
 
 export default defineConfig({
@@ -9,6 +8,8 @@ export default defineConfig({
   lang: 'en-NZ',
   cleanUrls: true,
   lastUpdated: true,
+  // README.md is the maintainer's guide to this site, not a page.
+  srcExclude: ['README.md'],
   head: [
     ['link', { rel: 'icon', href: '/ipp.svg' }]
   ],
@@ -20,38 +21,49 @@ export default defineConfig({
     nav: [
       { text: 'About', link: '/introduction' },
       { text: 'Configuration', link: '/config/' },
-      { text: 'Github', link: REPO_URL, target: '_self' }
+      { text: 'Releases', link: `${REPO_URL}/releases`, target: '_self' }
     ],
+    /* One group per kind of content (tutorial, reference, how-to, troubleshooting).
+       README.md in this folder explains the split; read it before adding a page.
+       Paths are public URLs: change a label or heading, never a path. */
     sidebar: [
       {
         text: 'Getting started',
         items: [
           { text: 'Introduction', link: '/introduction' },
-          { text: 'Installation', link: '/installation' },
-          { text: 'How to use it', link: '/how-to-use' },
-          { text: 'Troubleshooting', link: '/troubleshooting' }
+          {
+            text: 'Installation',
+            link: '/installation',
+            items: [
+              { text: 'Kubernetes', link: '/kubernetes' }
+            ]
+          },
+          { text: 'Sharing from Immich', link: '/how-to-use' },
+          { text: 'Upgrading', link: '/upgrading' }
         ]
       },
       {
-        text: 'Config options',
+        text: 'Configuration',
         items: [
           { text: 'Overview', link: '/config/' },
-          { text: 'IPP options', link: '/config/ipp-options' },
+          { text: 'Environment variables', link: '/config/environment-variables' },
+          { text: 'General options', link: '/config/ipp-options' },
           { text: 'Gallery', link: '/config/gallery' },
           { text: 'Lightbox', link: '/config/lightbox' },
           { text: 'Metadata', link: '/config/metadata' },
           { text: 'Error responses', link: '/config/error-responses' },
-          { text: 'Upgrading & migration', link: '/config/upgrading' }
+          { text: 'Legacy config keys', link: '/config/upgrading' }
         ]
       },
       {
-        text: 'Deployment',
+        text: 'Guides',
         items: [
           { text: 'Single domain with Immich', link: '/running-on-single-domain' },
-          { text: 'Securing Immich with mTLS', link: '/securing-immich-with-mtls' },
-          { text: 'Install with Kubernetes', link: '/kubernetes' }
+          { text: 'Redirect root domain to a share', link: '/redirect-root-to-share' },
+          { text: 'Securing Immich with mTLS', link: '/securing-immich-with-mtls' }
         ]
-      }
+      },
+      { text: 'Troubleshooting', link: '/troubleshooting' }
     ],
     socialLinks: [
       { icon: 'github', link: REPO_URL }

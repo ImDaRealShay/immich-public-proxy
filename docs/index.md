@@ -11,8 +11,8 @@ hero:
       link: https://demo.ipp.nz/s/demo-gallery
       target: _self
     - theme: alt
-      text: Getting started
-      link: /introduction
+      text: Get started
+      link: /installation
     - theme: alt
       text: Configuration
       link: /config/

@@ -9,6 +9,9 @@ import { Asset, ImageSize, IncomingShareRequest, SharedLink } from '../types'
 import { respondToInvalidRequest } from '../invalidRequestHandler'
 import { getFilename } from '../gallery/filename'
 import { isVideoAsset, resolveDownloadEndpoint, resolveImageEndpoint } from '../gallery/sizing'
+import { pipeline } from 'stream/promises'
+import { readableFromWeb } from '../utils/webStream'
+import { log } from '../utils/log'
 
 /**
  * Stream an asset from Immich back to the client.
@@ -19,6 +22,15 @@ import { isVideoAsset, resolveDownloadEndpoint, resolveImageEndpoint } from '../
  * to serve them, and the upstream failure surfaces as a client 404.
  */
 export async function assetBuffer (req: IncomingShareRequest, res: Response, asset: Asset, size?: ImageSize | string, share?: SharedLink, forceVideoPlayback = false) {
+  /*
+  Abort the upstream fetch as soon as the visitor goes away, so a cancelled
+  download doesn't leave Immich streaming #288.
+  */
+  const upstream = new AbortController()
+  const onClose = () => { if (!res.writableFinished) upstream.abort() }
+  res.once('close', onClose)
+  if (res.closed) onClose()
+
   const headerList = ['content-type', 'content-length', 'last-modified', 'etag']
   const fetchHeaders: Record<string, string> = {}
   let subpath: string
@@ -66,7 +78,13 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
 
   const url = assetFetchUrl(asset, subpath, sizeQueryParam)
   const reqHeaders = await authHeadersForAsset(asset)
-  const data = await fetch(url, { headers: { ...fetchHeaders, ...reqHeaders } })
+  let data: globalThis.Response
+  try {
+    data = await fetch(url, { headers: { ...fetchHeaders, ...reqHeaders }, signal: upstream.signal })
+  } catch (e) {
+    if (upstream.signal.aborted) return // visitor left before Immich answered
+    throw e
+  }
 
   if (data.status < 200 || data.status >= 300) {
     let immichMessage = ''
@@ -78,23 +96,53 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
     return
   }
 
-  if (attachment && asset.originalFileName) {
-    // Playback downloads serve Immich's transcode, so the filename extension
-    // must follow the response's content-type, not the original file's.
-    const playbackMime = useVideoPlayback
-      ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
-      : undefined
-    const filename = encodeURI(getFilename(asset, servedSize, playbackMime))
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
+  if (attachment) {
+    res.setHeader('X-Accel-Buffering', 'no')
+    if (asset.originalFileName) {
+      // Playback downloads serve Immich's transcode, so the filename extension
+      // must follow the response's content-type, not the original file's.
+      const playbackMime = useVideoPlayback
+        ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
+        : undefined
+      const filename = encodeURI(getFilename(asset, servedSize, playbackMime))
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
+    }
   }
   headerList.forEach(header => {
     const value = data.headers.get(header)
     if (value) res.setHeader(header, value)
   })
-  await data.body?.pipeTo(
-    new WritableStream({
-      write (chunk) { res.write(chunk) }
-    })
-  )
-  res.end()
+
+  // Express routes HEAD through the GET handler and Node silently drops the
+  // body writes, so without this we'd read the whole file from Immich for
+  // nothing. The headers above are all a HEAD needs.
+  if (req.req.method === 'HEAD' || !data.body) {
+    await data.body?.cancel()
+    res.end()
+    return
+  }
+
+  /*
+  pipeline (rather than a WritableStream sink around res.write) honours
+  backpressure from `res`: a LAN-speed read from Immich can't pile up in
+  memory ahead of a slow visitor #288.
+  */
+  try {
+    await pipeline(readableFromWeb(data.body), res)
+  } catch (e) {
+    if (!isClientAbort(e)) {
+      log.warn(`Stream from Immich failed for asset ${asset.id}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+}
+
+/**
+ * True when a pipeline error means the visitor went away: pipeline saw `res`
+ * close early (or found it already closed), or our abort signal, fired from
+ * that same close, reached the fetch body first.
+ */
+function isClientAbort (e: unknown): boolean {
+  if (!(e instanceof Error)) return false
+  const code = (e as NodeJS.ErrnoException).code
+  return code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'ERR_STREAM_UNABLE_TO_PIPE' || e.name === 'AbortError'
 }

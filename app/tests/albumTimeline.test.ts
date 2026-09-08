@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getShareByKey } from '../src/immich'
+import { getShareByKey, utcBucketKey } from '../src/immich'
 import { KeyType } from '../src/types'
 
 // 3.0-shaped responses: album `/shared-links/me` returns an empty assets[],
@@ -99,6 +99,22 @@ describe('album timeline enumeration (Immich 3.0)', () => {
     expect(assets[0].thumbhash).toBe('hashA')
     // dimensions derived from ratio (landscape 1.5 -> wider than tall)
     expect(assets[0].width!).toBeGreaterThan(assets[0].height!)
+  })
+
+  it('requests each bucket with an explicit UTC key so non-UTC databases match (#260)', async () => {
+    const fetchMock = routeFetch(sharedLinkResponse())
+    vi.stubGlobal('fetch', fetchMock)
+    await getShareByKey(uniqueKey(), undefined, KeyType.key)
+
+    const bucketCalls = fetchMock.mock.calls.map(c => String(c[0])).filter(u => u.includes('/timeline/bucket?'))
+    expect(bucketCalls).toHaveLength(1)
+    expect(new URL(bucketCalls[0]).searchParams.get('timeBucket')).toBe('2026-06-01T00:00:00.000Z')
+  })
+
+  it('utcBucketKey pads bare dates and leaves anything else alone', () => {
+    expect(utcBucketKey('2026-06-01')).toBe('2026-06-01T00:00:00.000Z')
+    expect(utcBucketKey('2026-06-01T00:00:00.000Z')).toBe('2026-06-01T00:00:00.000Z')
+    expect(utcBucketKey('')).toBe('')
   })
 
   it('synthesises localDateTime from fileCreatedAt + localOffsetHours', async () => {

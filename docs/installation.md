@@ -31,14 +31,28 @@ Now whenever you share an image or gallery through Immich, it will automatically
 you.
 
 > [!WARNING]
-> If you're using Cloudflare, please make sure to set your `/share/video/*` path to Bypass Cache, otherwise you may
-> run into video playback issues. See [Troubleshooting](#troubleshooting) for more information.
+> If you're using Cloudflare, please make sure to set your `/share/video/*`, `/share/*/download` and `/s/*/download`
+> paths to Bypass Cache, otherwise you may run into video playback issues and failed zip downloads. See
+> [Troubleshooting](/troubleshooting) for more information.
+
+Those two variables are all most people need. The port and the config file location are covered under
+[Environment variables](/config/environment-variables), and everything about how galleries look and behave under
+[Configuration](/config/).
+
+### Docker images
+
+Images are published to Docker Hub (`alangrainger/immich-public-proxy`) and GitHub Container Registry
+(`ghcr.io/alangrainger/immich-public-proxy`) for `linux/amd64` and `linux/arm64`. Each release is tagged with its
+full version (for example `3.3.0`), its minor version (`3.3`) and its major version (`3`), and `latest` always points
+at the newest release.
 
 ### Running alongside Immich on a single domain
 
-Because all IPP paths are under `/share/...`, you can run Immich Public Proxy and Immich on the same domain. See
-[Running on a single domain](/running-on-single-domain).
+Because all IPP paths are under `/share/...` and `/s/...`, you can run Immich Public Proxy and Immich on the same
+domain. See [Running on a single domain](/running-on-single-domain).
 
 ## Install with Kubernetes
 
 See the [Kubernetes install docs](/kubernetes).
+
+Next: [Sharing from Immich](/how-to-use).

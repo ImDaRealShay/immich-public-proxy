@@ -8,7 +8,33 @@ set to bypass cache. I ran into this issue myself, and found
 
 <a href="/cloudflare-video-cache.webp"><img src="/cloudflare-video-cache.webp" style="width:70%" alt="Cloudflare cache bypass rule for video paths"></a>
 
-I use Linux/Android, so this project is tested with BrowserStack for Apple/Windows devices.
+## "Download all" fails partway through
+
+If you use Cloudflare with a "cache everything" rule and large zip downloads stop with a browser error after a few
+seconds, add a cache rule that bypasses cache for `/share/*/download` and `/s/*/download` (the slug-link form), the
+same as for `/share/video/*` above. From v3.3.0 the zip is streamed as it is fetched from Immich, and Cloudflare's
+cache cuts those downloads short.
+
+Versions after v3.3.0 send the zip with `Cache-Control: no-store`, which is enough on its own if your cache rule's Edge
+TTL is set to respect the origin. If the rule overrides the Edge TTL, Cloudflare ignores that header and you need the
+bypass rule.
+
+## Link previews show `http://` or a private IP
+
+The gallery itself uses relative URLs, so it works behind any reverse proxy. The one place IPP needs a fully qualified
+URL is the `og:image` tag that messaging apps use for link previews. Without `PUBLIC_BASE_URL`, IPP builds it from the
+incoming request, and behind a TLS-terminating reverse proxy that request arrives as plain `http://` on whatever
+hostname or IP the proxy used.
+
+Set `PUBLIC_BASE_URL` in your `docker-compose.yml` to the public address of IPP, without a trailing slash:
+
+```yaml
+environment:
+  PUBLIC_BASE_URL: https://your-proxy-url.com
+```
+
+If you serve IPP from several domains, leave it unset and make sure your reverse proxy forwards the original `Host`
+header. See [Running on a single domain](/running-on-single-domain).
 
 ## Can't reach Immich using `localhost:2283`
 
@@ -63,3 +89,7 @@ your resolver to return an empty `NOERROR` (NODATA) rather than `NXDOMAIN` for t
 
 See issues [#203](https://github.com/alangrainger/immich-public-proxy/issues/203) and
 [#263](https://github.com/alangrainger/immich-public-proxy/issues/263) for the full investigation.
+
+---
+
+I use Linux/Android, so this project is tested with BrowserStack for Apple/Windows devices.

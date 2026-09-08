@@ -1,9 +1,10 @@
 # Install with Kubernetes
 
-See the [official Immich docs](https://immich.app/docs/install/kubernetes/) for additional information. This deployment uses the common chart Immich depends on ([bjw-s common library chart](https://github.com/bjw-s-labs/helm-charts/tree/common-5.0.1/charts/library/common)) to extend the deployment as described in the [Immich docs](https://github.com/immich-app/immich-charts/blob/main/README.md)
+See the [official Immich docs](https://immich.app/docs/install/kubernetes/) for additional information. This deployment uses the common chart Immich depends on ([bjw-s common library chart](https://github.com/bjw-s-labs/helm-charts/tree/common-5.0.1/charts/library/common)) to extend the deployment as described in the [Immich docs](https://github.com/immich-app/immich-charts/blob/main/README.md).
 
-1. Simply modify the values of your immich deployment in the server section. The next example shows using the new Gateway API HTTPRoute, below you can also find the old Ingress version. This uses 
-```
+Modify the values of your Immich deployment in the `server` section. The first example uses the newer Gateway API `HTTPRoute`; the Ingress version follows it.
+
+```yaml
 server:
   enabled: true
 
@@ -39,10 +40,10 @@ server:
         main:
           image:
             repository: alangrainger/immich-public-proxy
-            tag: 3.2.0
+            tag: 3.3.0  # pin to the current release: https://github.com/alangrainger/immich-public-proxy/releases
             pullPolicy: IfNotPresent
           env:
-            IMMICH_URL: https://your-immich-url.com // You could also reference the service here
+            IMMICH_URL: http://immich-server-main:2283  # the in-cluster Immich service, not your public URL
             PUBLIC_BASE_URL: https://your-proxy-url.com
 
   service:
@@ -53,15 +54,18 @@ server:
         http:
           port: 3000
 
-  serviceMonitor: // We modify the ServiceMonitor here, as the bjw-s common chart can get confused with more than 1 service (main and immich-public-proxy)
+  # The bjw-s common chart can get confused with more than one service (main and
+  # immich-public-proxy), so the ServiceMonitor is pinned to the main service here.
+  serviceMonitor:
     main:
-      enabled: false // Set to true if you need metrics
+      enabled: false  # set to true if you need metrics
       service:
         identifier: main
 ```
 
-Or with Ingress
-```
+Or with Ingress:
+
+```yaml
 server:
   enabled: true
   ingress:
@@ -84,7 +88,4 @@ server:
               pathType: Prefix
               service:
                 identifier: immich-public-proxy
-...
 ```
-
-
