@@ -316,7 +316,8 @@ app.get('/:shareType(share|s)/meta/:key/:id', decodeCookie, asyncHandler(async (
 if (getConfigOption('ipp.showHomePage', true)) {
   app.get(/^\/(|share)\/*$/, (_req, res) => {
     addResponseHeaders(res)
-    res.send(renderPage(h(Home, {})))
+    // res.send(renderPage(h(Home, {})))
+    res.redirect(302, 'https://github.com/ImDaRealShay/immich-public-proxy');
   })
 }
 
