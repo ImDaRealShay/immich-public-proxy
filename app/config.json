@@ -4,8 +4,8 @@
       "Cache-Control": "public, no-cache",
       "Access-Control-Allow-Origin":  "*"
     },
+    "maxZoomQuality": "fullsize",
     "maxDownloadQuality": "original",
-    "maxZoomQuality": "preview",
     "downloadedFilename": 0,
     "allowDownload": 0,
     "allowSlugLinks": true,

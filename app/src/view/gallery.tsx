@@ -25,7 +25,39 @@ export interface GalleryProps {
   metaBase?: string
 }
 
-export function Gallery (props: GalleryProps) {
+export function Gallery(props: GalleryProps) {
+  // Return a formatted 404 page if no items exist in the gallery
+  if (!props.items || props.items.length === 0) {
+    return (
+      <html lang="en">
+        <head>
+          <ThemeScript/>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+          <title>404 - File(s) Not Found</title>
+          <link rel="icon" href="/share/static/favicon.ico" type="image/x-icon"/>
+          <link type="text/css" rel="stylesheet" href={`/share/static/${ASSET_VERSION}/style.css`}/>
+        </head>
+        <body>
+          <main style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '80vh',
+            textAlign: 'center',
+            padding: '2rem'
+          }}>
+            <h1 style={{ fontSize: '4rem', marginBottom: '0.5rem' }}>404</h1>
+            <h2>File(s) Not Found or Empty</h2>
+            <p style={{ marginTop: '1rem', color: 'var(--text-secondary, #666)' }}>
+              The requested image(s) contains no items or is no longer available.
+            </p>
+          </main>
+        </body>
+      </html>
+    )
+  }
+
   const initJson = jsonForInlineScript({
     items: props.items,
     openItem: props.openItem,
