@@ -61,6 +61,8 @@ export interface Asset {
   height?: number;
   // Base64-encoded thumbhash for tasteful blur placeholders during lazy-load
   thumbhash?: string;
+  // Motion photo (Live Photo) clip: a hidden asset authorised by the same key
+  livePhotoVideoId?: string;
   // True for album assets enumerated via the timeline API, which give us only
   // grid fields (id, type, ratio, thumbhash, isTrashed, fileCreatedAt). Their
   // exif / originalFileName / description are fetched lazily when the asset is
@@ -101,6 +103,8 @@ export interface TimelineBucketAssets {
   // UTC offset (hours, may be fractional) at the time each photo was taken.
   // Applying it to fileCreatedAt yields the photographer's local time.
   localOffsetHours: number[];
+  // Motion photo (Live Photo) clip id; null for ordinary assets.
+  livePhotoVideoId: (string | null)[];
 }
 
 export interface SharedLink {

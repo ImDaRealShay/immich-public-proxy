@@ -1,9 +1,16 @@
 // PhotoSwipe UI element registrations: back button, caption (description),
-// download button, fullscreen toggle. Each is gated by config or feature
-// detection. The info sidebar lives in `sidebar.ts`.
+// download button, fullscreen toggle, motion photo toggle. Each is gated by
+// config or feature detection. The info sidebar lives in `sidebar.ts`.
 
 import { state } from './state.js'
-import { ICON_BACK, ICON_DOWNLOAD, ICON_FULLSCREEN, ICON_FULLSCREEN_EXIT } from './icons.js'
+import {
+  ICON_BACK,
+  ICON_DOWNLOAD,
+  ICON_FULLSCREEN,
+  ICON_FULLSCREEN_EXIT,
+  ICON_MOTION_PAUSE,
+  ICON_MOTION_PLAY
+} from './icons.js'
 
 // PhotoSwipe types are not bundled with the project. These two interfaces
 // describe just enough of the surface we touch to keep the rest of the file
@@ -23,6 +30,8 @@ interface PswpUiElementConfig {
 interface PswpInstance {
   currIndex: number
   element: HTMLElement
+  // A slide's `container` is its `.pswp__zoom-wrap` element.
+  currSlide?: { container?: HTMLElement }
   ui: {
     registerElement: (config: PswpUiElementConfig) => void
   }
@@ -157,6 +166,134 @@ export function registerFullscreenButton (lightbox: LightboxInstance) {
             document.exitFullscreen().catch(() => {})
           }
         })
+      }
+    })
+  })
+}
+
+// Set on the zoom wrap while a clip is painting, so CSS can fade the still out.
+const MOTION_PLAYING_CLASS = 'pswp--motion-playing'
+
+// Sticky: once on, every motion photo the visitor opens plays its clip until
+// they turn it off. Module-level so it survives reopening the lightbox.
+let motionEnabled = false
+
+/**
+ * The `.pswp__zoom-wrap` of the current slide. It carries PhotoSwipe's pan /
+ * zoom transform, so a child at its origin follows the still for free. It has
+ * no box of its own though (auto width / height, absolute children), so the
+ * clip can't be sized from it.
+ */
+function currentZoomWrap (pswp: PswpInstance): HTMLElement | null {
+  const container = pswp.currSlide?.container
+  return container instanceof HTMLElement ? container : null
+}
+
+/** The loaded still in a zoom wrap (not the thumbnail placeholder), if any. */
+function loadedStill (wrap: HTMLElement): HTMLElement | null {
+  const still = wrap.querySelector('.pswp__img:not(.pswp__img--placeholder)')
+  return still instanceof HTMLElement ? still : null
+}
+
+/**
+ * Register the motion photo (Live Photo) toggle. While on, each motion photo
+ * plays its clip over the still on arrival and reverts when the clip ends.
+ * The button hides itself on slides without a clip. Nothing is fetched from
+ * Immich until the toggle is turned on.
+ */
+export function registerMotionButton (lightbox: LightboxInstance) {
+  lightbox.on('uiRegister', () => {
+    lightbox.pswp.ui.registerElement({
+      name: 'motion-button',
+      order: 6,
+      isButton: true,
+      html: ICON_MOTION_PLAY,
+      onInit: (el: HTMLElement, pswp: PswpInstance) => {
+        let video: HTMLVideoElement | null = null
+        let sizer: ResizeObserver | null = null
+        let stillWatcher: MutationObserver | null = null
+
+        const update = () => {
+          el.hidden = !state.items[pswp.currIndex]?.motionUrl
+          const label = motionEnabled ? 'Stop playing motion photos' : 'Play motion photos'
+          el.innerHTML = motionEnabled ? ICON_MOTION_PAUSE : ICON_MOTION_PLAY
+          el.setAttribute('aria-label', label)
+          el.setAttribute('title', label)
+        }
+
+        const stop = () => {
+          stillWatcher?.disconnect()
+          stillWatcher = null
+          const clip = video
+          if (!clip) return
+          video = null
+          sizer?.disconnect()
+          sizer = null
+          clip.pause()
+          clip.parentElement?.classList.remove(MOTION_PLAYING_CLASS)
+          clip.remove()
+        }
+
+        const play = () => {
+          if (video) return
+          const item = state.items[pswp.currIndex]
+          const wrap = currentZoomWrap(pswp)
+          if (!item?.motionUrl || !wrap) return
+          const still = loadedStill(wrap)
+          if (!still) {
+            // PhotoSwipe appends the still after it loads, which can be after
+            // the slide change. Wait for it.
+            stillWatcher?.disconnect()
+            stillWatcher = new MutationObserver(() => {
+              if (loadedStill(wrap)) play()
+            })
+            stillWatcher.observe(wrap, { childList: true })
+            return
+          }
+          stillWatcher?.disconnect()
+          stillWatcher = null
+          const clip = document.createElement('video')
+          clip.className = 'pswp__motion-video'
+          clip.muted = true // required for programmatic playback
+          clip.playsInline = true
+          clip.preload = 'none'
+          clip.src = item.motionUrl
+          // Mirror the still's inline size, which PhotoSwipe rewrites on
+          // resize and after each zoom gesture.
+          const sizeToStill = () => {
+            clip.style.width = still.offsetWidth + 'px'
+            clip.style.height = still.offsetHeight + 'px'
+          }
+          sizeToStill()
+          sizer = new ResizeObserver(sizeToStill)
+          sizer.observe(still)
+          clip.addEventListener('ended', stop, { once: true })
+          clip.addEventListener('error', stop, { once: true })
+          // Hide the still only once the clip is painting, so a slow clip never
+          // leaves the slide blank.
+          clip.addEventListener('playing', () => {
+            if (video === clip) wrap.classList.add(MOTION_PLAYING_CLASS)
+          }, { once: true })
+          wrap.appendChild(clip)
+          video = clip
+          clip.play().catch(() => stop())
+        }
+
+        el.addEventListener('click', () => {
+          motionEnabled = !motionEnabled
+          if (motionEnabled) play()
+          else stop()
+          update()
+        })
+        // Also fires for the opening slide, so this covers reopening with
+        // the toggle on.
+        pswp.on('change', () => {
+          stop()
+          update()
+          if (motionEnabled) play()
+        })
+        pswp.on('destroy', stop)
+        update()
       }
     })
   })

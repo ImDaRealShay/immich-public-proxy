@@ -139,6 +139,26 @@ html.pswp-no-arrows .pswp__button--arrow {
   background: #000;
 }
 
+/* Motion photo (Live Photo) clip, inside the slide's zoom wrap so it follows
+   PhotoSwipe's pan / zoom. Width / height are set inline from the still. */
+.pswp__motion-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  object-fit: contain;
+  pointer-events: none; /* PhotoSwipe keeps handling drag / zoom / swipe */
+}
+
+.pswp__zoom-wrap.pswp--motion-playing .pswp__img {
+  opacity: 0;
+}
+
+/* PhotoSwipe's `.pswp__button { display: block }` outranks the browser's
+   `[hidden]` rule, so a toolbar button that hides itself needs this. */
+.pswp__button[hidden] {
+  display: none;
+}
+
 /* Smooth backdrop fade in/out to match Immich's open/close feel */
 .pswp__bg {
   transition: opacity var(--pswp-transition-duration);

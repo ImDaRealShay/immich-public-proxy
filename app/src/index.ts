@@ -23,7 +23,7 @@ import { Asset, AssetType, ImageSize, KeyType, SharedLink } from './types'
 import { getConfigOption } from './config/access'
 import { loadConfig } from './config/loader'
 import { addResponseHeaders, asyncHandler, errorHandler } from './http'
-import { canDownload } from './share'
+import { canDownload, findMotionPhotoStill } from './share'
 import { toString } from './utils/text'
 import { decrypt, encrypt } from './encrypt'
 import { respondToInvalidRequest } from './invalidRequestHandler'
@@ -121,7 +121,7 @@ async function resolveShare (req: Request, keyType: KeyType): Promise<ShareResol
   return { ok: true, link: share.link }
 }
 
-async function resolveSharedAsset (req: Request, keyType: KeyType): Promise<SharedAssetResolution> {
+async function resolveSharedAsset (req: Request, keyType: KeyType, allowMotion = false): Promise<SharedAssetResolution> {
   if (!isId(req.params.id)) {
     return { ok: false, status: 404, reason: 'Invalid ID for ' + req.path }
   }
@@ -130,10 +130,21 @@ async function resolveSharedAsset (req: Request, keyType: KeyType): Promise<Shar
   // Confirm the asset belongs to this share (defence in depth - Immich also
   // enforces this via the share key).
   const asset = resolved.link.assets.find(a => a.id === req.params.id)
-  if (!asset) {
-    return { ok: false, status: 404, reason: 'Asset not found in share' }
+  if (asset) return { ok: true, link: resolved.link, asset }
+  // A motion photo's clip is a hidden asset outside the share's asset list.
+  // Serve it on the video route only, and only if a shared still points at it.
+  if (allowMotion) {
+    const parent = findMotionPhotoStill(resolved.link, req.params.id)
+    if (parent) {
+      return {
+        ok: true,
+        link: resolved.link,
+        // Streams inline, so the still's filename / mime must not carry over.
+        asset: { ...parent, id: req.params.id, type: AssetType.video, originalFileName: undefined, originalMimeType: undefined }
+      }
+    }
   }
-  return { ok: true, link: resolved.link, asset }
+  return { ok: false, status: 404, reason: 'Asset not found in share' }
 }
 
 /*
@@ -253,7 +264,7 @@ app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, asyncHandler(
   // The resolved asset gives assetBuffer access to originalMimeType and
   // originalFileName (needed for Content-Disposition and for requiresOriginal
   // to recognise videos/animated images and bypass the preview downgrade).
-  const resolved = await resolveSharedAsset(req, KeyType.key)
+  const resolved = await resolveSharedAsset(req, KeyType.key, req.params.type === 'video')
   if (!resolved.ok) {
     // Password-protected: redirect to the share page so the visitor gets the
     // unlock prompt, rather than returning an error.

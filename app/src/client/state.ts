@@ -15,6 +15,8 @@ export const MOBILE_COLS = 3
 export const IMAGE_LOAD_MARGIN_PX = 300
 export const SCROLL_SETTLE_MS = 100
 export const BUFFER_VIEWPORTS = 1
+// Cap on state.stickyTiles: dozens of screens of scroll-back, bounded DOM
+export const STICKY_TILE_LIMIT = 1500
 // Height reserved for each month header (must agree with .group-header CSS)
 export const HEADER_HEIGHT = 48
 // Vertical gap between groups
@@ -73,6 +75,13 @@ export const state = {
   lastContainerW: 0,
   renderedTiles: new Map<number, HTMLAnchorElement>(),
   renderedHeaders: new Map<string, HTMLElement>(),
+  /*
+    Indices of tiles whose <img> has loaded. virtualize() never removes these,
+    so scrolling back reuses the mounted <img>: no placeholder flicker and no
+    re-fetch (password-protected shares serve thumbnails `no-store`). Ordered
+    most-recently-visible last and trimmed to STICKY_TILE_LIMIT from the head.
+  */
+  stickyTiles: new Set<number>(),
   // Selection mode (mode-toggle UX: hidden checkmarks until activated)
   selectMode: false,
   selected: new Set<string>(),

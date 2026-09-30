@@ -7,6 +7,7 @@ import {
   IMAGE_LOAD_MARGIN_PX,
   SCROLL_SETTLE_MS,
   BUFFER_VIEWPORTS,
+  STICKY_TILE_LIMIT,
   type HeaderEntry
 } from './state.js'
 import { computeLayout } from './layout.js'
@@ -56,6 +57,21 @@ export function virtualize () {
     if (l.top > bottom) break
     neededTiles.add(l.index)
   }
+  // Sticky tiles (see state.stickyTiles): bump in-range ones to the tail,
+  // evict overflow from the head, keep the rest. Only ever blocks removal.
+  for (const index of neededTiles) {
+    if (state.stickyTiles.delete(index)) state.stickyTiles.add(index)
+  }
+  if (state.stickyTiles.size > STICKY_TILE_LIMIT) {
+    let overflow = state.stickyTiles.size - STICKY_TILE_LIMIT
+    for (const index of state.stickyTiles) {
+      if (overflow <= 0) break
+      if (neededTiles.has(index)) continue
+      state.stickyTiles.delete(index)
+      overflow--
+    }
+  }
+  for (const index of state.stickyTiles) neededTiles.add(index)
   syncRendered(neededTiles, state.renderedTiles, createTile)
 
   // Group headers (when grouping is enabled; headers is empty otherwise)
@@ -128,6 +144,8 @@ export function computeLayoutAndRender () {
   state.renderedTiles.clear()
   for (const [, el] of state.renderedHeaders) el.remove()
   state.renderedHeaders.clear()
+  // Otherwise virtualize() would rebuild every seen tile at once
+  state.stickyTiles.clear()
 
   virtualize()
   loadVisibleTiles()
@@ -149,6 +167,7 @@ export function loadVisibleTiles () {
   for (const a of state.renderedTiles.values()) {
     const img = a.firstElementChild
     if (!(img instanceof HTMLImageElement)) continue
+    if (img.complete && img.src && !img.dataset.src) continue
     const aTopInVp = containerTop + parseFloat(a.style.top || '0')
     const aHeight = parseFloat(a.style.height || '0')
     const isFar = aTopInVp + aHeight < -IMAGE_LOAD_MARGIN_PX ||
