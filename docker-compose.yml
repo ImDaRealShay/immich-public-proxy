@@ -3,21 +3,26 @@ services:
     build: .
     image: imdarealshay/immich-public-proxy:latest
     container_name: immich-public-proxy
-
+    user: "1000:100"
     restart: unless-stopped
     runtime: gvisor
     read_only: true
     environment:
-      PUBLIC_BASE_URL: https://immich.akshaykaundinya.com
+      PUBLIC_BASE_URL: https://share.akshaykaundinya.com
       IMMICH_URL: http://172.21.22.83:2283
     healthcheck:
       test: curl -s http://localhost:3000/share/healthcheck -o /dev/null || exit 1
       start_period: 10s
       timeout: 5s
-    # volumes:
-    #   - ./config.json:/app/config.json
     networks:
       - tunnel_net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 128M
 
 networks:
   tunnel_net:

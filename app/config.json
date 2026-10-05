@@ -5,7 +5,7 @@
       "Access-Control-Allow-Origin":  "*"
     },
     "maxZoomQuality": "preview",
-    "maxDownloadQuality": "original",
+    "maxDownloadQuality": "preview",
     "motionPhotos": true,
     "downloadedFilename": 0,
     "allowDownload": 0,
