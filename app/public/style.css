@@ -112,6 +112,7 @@ html, body {
   opacity: 0;
   transition: opacity 0.25s ease-out;
   border-radius: 16px;
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
 }
 
 /* Fade the thumbnail in once its bytes are decoded (web.js adds .loaded on
@@ -252,6 +253,10 @@ html, body {
 
 #gallery a[data-index]:hover::after {
   opacity: 1;
+}
+
+#gallery a[data-index]:hover img {
+  transform: scale(1.03);
 }
 
 /* Motion photo (Live Photo) indicator, top-right to match Immich's grid */
