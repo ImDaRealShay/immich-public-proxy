@@ -8,10 +8,10 @@ import type { GalleryItem, LightboxConfig, MetadataConfig, GroupByDateMode } fro
 // ----- layout / scroll tuning ----------------------------------------------
 
 // Justified-rows target row height (matches Immich's main view)
-export const TARGET_ROW_HEIGHT = 235
-export const GAP = 4
-export const MOBILE_BREAKPOINT = 640
-export const MOBILE_COLS = 3
+export const TARGET_ROW_HEIGHT = 425 // 235 originally
+export const GAP = 12 // 4 originally
+export const MOBILE_BREAKPOINT = 1 // 640 originally
+export const MOBILE_COLS = 1
 export const IMAGE_LOAD_MARGIN_PX = 300
 export const SCROLL_SETTLE_MS = 100
 export const BUFFER_VIEWPORTS = 1

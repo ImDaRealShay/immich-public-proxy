@@ -20,14 +20,14 @@
 
 :root {
   /* Immich light-mode tokens (RGB triplets so they compose via rgb (var(...))) */
-  --immich-primary: 66 80 175;
-  --immich-bg: 255 255 255;
-  --immich-fg: 0 0 0;
-  --immich-gray: 235 235 235;
+  --immich-primary: 172 203 250;
+  --immich-bg: 2 6 23;
+  --immich-fg: 229 231 235;
+  --immich-gray: 33 33 33;
 
-  /* Immich dark-mode tokens */
+  /* Immich dark-mode tokens #020617 */
   --immich-dark-primary: 172 203 250;
-  --immich-dark-bg: 10 17 31;
+  --immich-dark-bg: 2 6 23;
   --immich-dark-fg: 229 231 235;
   --immich-dark-gray: 33 33 33;
 
@@ -42,16 +42,16 @@
   /* Horizontal inset for textual page content (title, description, group
      headers). The grid itself goes edge-to-edge on mobile so it doesn't use
      this value. */
-   --gutter: clamp(24px, 10vw, 256px);
+   --gutter: clamp(18px, 10vw, 256px);
 
   color-scheme: light;
 }
 
-@media (max-width: 640px) {
+/*@media (max-width: 640px) {
   :root {
     --gutter: 8px;
   }
-}
+}*/
 
 html.dark {
   --color-bg: rgb(var(--immich-dark-bg));
@@ -82,12 +82,12 @@ html, body {
   margin: 0 var(--gutter) var(--gutter);
 }
 
-@media (max-width: 640px) {
+/*@media (max-width: 640px) {*/
   /* Tiles go edge-to-edge on mobile, so the gallery doesn't use --gutter */
-  #gallery {
+  /*#gallery {
     margin: 0;
   }
-}
+}*/
 
 #gallery a {
   position: absolute;
@@ -99,6 +99,7 @@ html, body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  border-radius: 16px;
   /* left / top / width / height set per-tile by the client layout module;
      background-image is the decoded thumbhash placeholder, set by `tiles.ts`. */
 }
@@ -110,6 +111,7 @@ html, body {
   object-fit: cover;
   opacity: 0;
   transition: opacity 0.25s ease-out;
+  border-radius: 16px;
 }
 
 /* Fade the thumbnail in once its bytes are decoded (web.js adds .loaded on
@@ -141,13 +143,13 @@ html, body {
   white-space: nowrap;
 }
 
-@media (max-width: 640px) {
+/*@media (max-width: 640px) {*/
   /* On mobile the gallery itself goes edge-to-edge, so the headers need
      their own left padding to keep the text away from the screen edge. */
-  .group-header {
+  /*.group-header {
     padding-left: var(--gutter);
   }
-}
+}*/
 
 /* ===== Selection mode (checkmark + selected state) ===== */
 
@@ -234,6 +236,24 @@ html, body {
   opacity: 1;
 }
 
+/*custom styles*/
+#gallery a[data-index]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100px; /* Controls how far down the shadow extends */
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  pointer-events: none;
+}
+
+#gallery a[data-index]:hover::after {
+  opacity: 1;
+}
+
 /* Motion photo (Live Photo) indicator, top-right to match Immich's grid */
 .motion-icon {
   position: absolute;
@@ -270,8 +290,13 @@ html, body {
 
 #header h1 {
   margin: 0;
-  font-size: 50px;
-  font-weight: 500;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-weight: 850; /* 700 is the standard numerical value for Bold */
+  font-size: clamp(32px,7vw,50px);
   line-height: 1.2;
   letter-spacing: -0.0em;
   overflow-wrap: break-word;
@@ -279,9 +304,9 @@ html, body {
 
 #header .subtitle {
   margin: 4px 0 0;
-  font-size: 30px;
-  font-weight: 400;
-  opacity: 0.55;
+  font-size: clamp(19px,4vw,30px);
+  font-weight: 600;
+  opacity: 0.75;
 }
 
 #download-all {
@@ -318,7 +343,7 @@ html, body {
   white-space: pre-wrap;
 }
 
-@media (max-width: 640px) {
+/*@media (max-width: 640px) {
   #header {
     padding-top: 16px;
     padding-bottom: 8px;
@@ -330,7 +355,7 @@ html, body {
     padding-bottom: 12px;
     font-size: 14px;
   }
-}
+}*/
 
 /* ===== Selection toolbar (fixed at top while select-mode is active) ===== */
 
@@ -411,7 +436,7 @@ html, body {
   outline: none;
 }
 
-@media (max-width: 640px) {
+/*@media (max-width: 640px) {
   #select-toolbar {
     height: 48px;
   }
@@ -423,7 +448,7 @@ html, body {
     padding: 6px 12px;
     font-size: 13px;
   }
-}
+}*/
 
 /* ============================================================================
    Info sidebar. Docks to the right of the lightbox on desktop; becomes a
@@ -584,22 +609,4 @@ html.ipp-sidebar-open .ipp-sidebar {
   padding: 16px;
   opacity: 0.6;
   text-align: center;
-}
-
-/*custom styles*/
-#gallery a[data-index]::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100px; /* Controls how far down the shadow extends */
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.15s ease-in-out;
-  pointer-events: none;
-}
-
-#gallery a[data-index]:hover::after {
-  opacity: 1;
 }
