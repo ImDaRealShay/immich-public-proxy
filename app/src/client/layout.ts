@@ -53,6 +53,15 @@ export function computeLayout (containerW: number): LayoutResult {
       : layoutJustifiedGroup(containerW, group.indices, y, tileLayout)
     if (g < groups.length - 1) y += GROUP_GAP
   }
+  const calculatedTotalHeight = Math.max(0, y);
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('embed') === 'true' && window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'IPP_RESIZE',
+      // Adding 160px accounts for the header, title, and bottom padding
+      height: calculatedTotalHeight + 160
+    }, '*');
+  }
   return {
     layout: tileLayout,
     headers: newHeaders,

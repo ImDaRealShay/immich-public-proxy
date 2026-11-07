@@ -72,6 +72,19 @@ html, body {
   font-family: var(--font-sans);
 }
 
+/* Only activate auto-height and remove internal scrolling when embedded */
+html.is-embedded,
+html.is-embedded body {
+  height: auto !important;
+  min-height: 100%;
+  overflow: visible !important;
+}
+
+/* Hide header controls that don't make sense inside the portfolio iframe (optional) */
+html.is-embedded #download-all {
+  display: none;
+}
+
 /* ===== Justified-rows / square-grid gallery (tiles are absolute-positioned by JS) ===== */
 
 #gallery {

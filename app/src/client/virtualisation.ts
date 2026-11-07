@@ -13,6 +13,11 @@ import {
 import { computeLayout } from './layout.js'
 import { createTile } from './tiles.js'
 
+function isEmbeddedMode (): boolean {
+  return document.documentElement.classList.contains('is-embedded') ||
+    new URLSearchParams(window.location.search).get('embed') === 'true'
+}
+
 /**
  * Translate the current window viewport into container-relative coordinates
  * (so layout entries' absolute `top` values can be compared directly) and
@@ -45,7 +50,8 @@ function createHeader (header: HeaderEntry): HTMLElement {
  * headers that should now be on screen, remove ones that have scrolled out.
  * Idempotent; safe to call multiple times per frame (scroll handler does).
  */
-export function virtualize () {
+export function virtualize() {
+  const isEmbedded = isEmbeddedMode()
   if (!state.container || !state.layout.length) return
   const { top, bottom } = getVisibleRange()
 
@@ -53,8 +59,10 @@ export function virtualize () {
   const neededTiles = new Set<number>()
   for (const l of state.layout) {
     if (!l) continue
-    if (l.top + l.height < top) continue
-    if (l.top > bottom) break
+    if (!isEmbedded) {
+      if (l.top + l.height < top) continue
+      if (l.top > bottom) break
+    }
     neededTiles.add(l.index)
   }
   // Sticky tiles (see state.stickyTiles): bump in-range ones to the tail,
@@ -77,8 +85,10 @@ export function virtualize () {
   // Group headers (when grouping is enabled; headers is empty otherwise)
   const neededHeaders = new Set<string>()
   for (const h of state.headers) {
-    if (h.top + h.height < top) continue
-    if (h.top > bottom) break
+    if (!isEmbedded) {
+      if (h.top + h.height < top) continue
+      if (h.top > bottom) break
+    }
     neededHeaders.add(h.label)
   }
   syncRendered(neededHeaders, state.renderedHeaders, (label) => {
@@ -160,7 +170,8 @@ export function computeLayoutAndRender () {
  *
  * Run after scroll has settled, not on every scroll tick.
  */
-export function loadVisibleTiles () {
+export function loadVisibleTiles() {
+  const isEmbedded = isEmbeddedMode()
   if (!state.container) return
   const vpHeight = window.innerHeight
   const containerTop = state.container.getBoundingClientRect().top
@@ -168,6 +179,14 @@ export function loadVisibleTiles () {
     const img = a.firstElementChild
     if (!(img instanceof HTMLImageElement)) continue
     if (img.complete && img.src && !img.dataset.src) continue
+    // Add this block to promote all thumbnails immediately when embedded:
+    if (isEmbedded) {
+      if (img.dataset.src) {
+        img.src = img.dataset.src
+        img.removeAttribute('data-src')
+      }
+      continue
+    }
     const aTopInVp = containerTop + parseFloat(a.style.top || '0')
     const aHeight = parseFloat(a.style.height || '0')
     const isFar = aTopInVp + aHeight < -IMAGE_LOAD_MARGIN_PX ||

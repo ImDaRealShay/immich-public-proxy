@@ -19,7 +19,11 @@ function readInitParams (): InitParams {
   try { return JSON.parse(el.textContent || '{}') } catch (e) { return {} }
 }
 
-function init () {
+function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('embed') === 'true') {
+    document.documentElement.classList.add('is-embedded');
+  }
   const params = readInitParams()
   state.items = params.items || []
   state.lightboxConfig = params.lightboxConfig || {}
