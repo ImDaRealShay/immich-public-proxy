@@ -32,6 +32,18 @@ function init() {
   state.metaBase = params.metaBase || ''
   state.container = document.getElementById('gallery')
   if (!state.container) return
+  if (urlParams.get('embed') === 'true' && window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'IPP_INIT_ITEMS',
+      items: state.items.map(it => ({
+        id: it.id,
+        src: it.previewUrl,
+        thumb: it.thumbnailUrl,
+        width: it.width,
+        height: it.height
+      }))
+    }, '*')
+  }
 
   setupToolbar()
   initLightbox()

@@ -353,7 +353,15 @@ export function initLightbox () {
  * Open the lightbox to the item at `index` (0-based into `state.items`).
  * No-op if the lightbox hasn't been initialised yet.
  */
-export function openLightbox (index: number) {
+export function openLightbox(index: number) {
+  const urlParams = new URLSearchParams(window.location.search)
+  if (urlParams.get('embed') === 'true' && window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'IPP_OPEN_LIGHTBOX',
+      index: index
+    }, '*')
+    return // Stop internal PhotoSwipe from mounting
+  }
   if (state.lightbox) state.lightbox.loadAndOpen(index)
 }
 

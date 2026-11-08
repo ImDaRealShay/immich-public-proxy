@@ -23,7 +23,7 @@ import { displayDimensions, metadataGroupActive, pickExif } from './exif'
  * @param share - Immich `shared-link` containing the assets to show in the gallery
  * @param [openItem] - Immediately open the lightbox to the Nth item when the gallery loads
  */
-export async function gallery (res: Response, share: SharedLink, openItem?: number) {
+export async function gallery(res: Response, share: SharedLink, openItem?: number) {
   // publicBaseUrl is used for the og:image, which requires a fully qualified URL.
   // You can specify this in your docker-compose file via the PUBLIC_BASE_URL env var.
   const publicBaseUrl = process.env.PUBLIC_BASE_URL || (res.req.protocol + '://' + res.req.headers.host)
